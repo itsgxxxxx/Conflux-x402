@@ -82,10 +82,7 @@ app.post("/attest", async (req, res) => {
 
     logger.info({ address, domain, method }, "Received attestation request");
 
-    // Generate challenge
-    const challenge = verifier.generateChallenge(address, domain, method);
-
-    // Verify domain ownership
+    // Verify domain ownership (using existing challenge)
     const verificationResult = await verifier.verifyDomain(address, domain);
 
     if (!verificationResult.success) {
@@ -96,7 +93,6 @@ app.post("/attest", async (req, res) => {
       return res.status(400).json({
         error: "Domain verification failed",
         message: verificationResult.error,
-        challenge,
       });
     }
 
@@ -111,7 +107,7 @@ app.post("/attest", async (req, res) => {
       signature,
       domainHash,
       expiry: Number(expiry),
-      challenge,
+      challenge: verifier.getChallenge(address, domain)?.code || "",
       userAddress: address,
     };
 
