@@ -1,11 +1,14 @@
 import { randomBytes } from "crypto";
+import { promises as dns } from "dns";
 import type { Logger } from "pino";
+import type { VerificationMethod } from "./types.js";
 
 export interface Challenge {
   code: string;
   address: string;
   domain: string;
   createdAt: number;
+  method: VerificationMethod;
 }
 
 export class DomainVerifier {
@@ -25,7 +28,7 @@ export class DomainVerifier {
   /**
    * Generate a new challenge code for domain verification
    */
-  generateChallenge(address: string, domain: string): string {
+  generateChallenge(address: string, domain: string, method: VerificationMethod = "http"): string {
     const code = `x402-verify-${randomBytes(16).toString("hex")}`;
 
     this.challenges.set(this.getChallengeKey(address, domain), {
@@ -33,10 +36,11 @@ export class DomainVerifier {
       address,
       domain,
       createdAt: Date.now(),
+      method,
     });
 
     this.logger.info(
-      { address, domain, code },
+      { address, domain, code, method },
       "Generated verification challenge"
     );
 
@@ -44,14 +48,14 @@ export class DomainVerifier {
   }
 
   /**
-   * Verify domain ownership via HTTP endpoint check
+   * Verify domain ownership via HTTP endpoint check or DNS TXT record
    */
   async verifyDomain(
     address: string,
     domain: string
   ): Promise<{ success: boolean; error?: string }> {
     if (this.mockMode) {
-      this.logger.info({ address, domain }, "Mock mode: skipping HTTP verification");
+      this.logger.info({ address, domain }, "Mock mode: skipping verification");
       return { success: true };
     }
 
@@ -71,15 +75,29 @@ export class DomainVerifier {
       return { success: false, error: "Challenge expired" };
     }
 
+    // Choose verification method
+    if (challenge.method === "dns") {
+      return this.verifyDNS(domain, challenge.code, address, key);
+    } else {
+      return this.verifyHTTP(domain, challenge.code, address, key);
+    }
+  }
+
+  /**
+   * Verify domain ownership via HTTP endpoint
+   */
+  private async verifyHTTP(
+    domain: string,
+    expectedChallenge: string,
+    address: string,
+    challengeKey: string
+  ): Promise<{ success: boolean; error?: string }> {
     try {
-      // Construct verification URL
       const verificationUrl = this.getVerificationUrl(domain, address);
+      this.logger.info({ url: verificationUrl }, "Fetching HTTP verification endpoint");
 
-      this.logger.info({ url: verificationUrl }, "Fetching verification endpoint");
-
-      // Fetch the endpoint
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
 
       const response = await fetch(verificationUrl, {
         signal: controller.signal,
@@ -98,12 +116,10 @@ export class DomainVerifier {
       }
 
       const body = await response.text();
-      const expectedChallenge = challenge.code;
 
-      // Check if response contains the challenge code
       if (body.trim() === expectedChallenge) {
-        this.logger.info({ address, domain }, "Domain verification successful");
-        this.challenges.delete(key); // Clean up used challenge
+        this.logger.info({ address, domain }, "HTTP verification successful");
+        this.challenges.delete(challengeKey);
         return { success: true };
       } else {
         this.logger.warn(
@@ -116,13 +132,67 @@ export class DomainVerifier {
         };
       }
     } catch (error: any) {
-      this.logger.error({ error: error.message, address, domain }, "Verification failed");
+      this.logger.error({ error: error.message, address, domain }, "HTTP verification failed");
 
       if (error.name === "AbortError") {
         return { success: false, error: "Request timeout" };
       }
 
       return { success: false, error: error.message || "Verification failed" };
+    }
+  }
+
+  /**
+   * Verify domain ownership via DNS TXT record
+   */
+  private async verifyDNS(
+    domain: string,
+    expectedChallenge: string,
+    address: string,
+    challengeKey: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const dnsName = `_x402-verify.${domain}`;
+      this.logger.info({ dnsName }, "Querying DNS TXT record");
+
+      // Query TXT records
+      const records = await dns.resolveTxt(dnsName);
+
+      // Flatten TXT records (they come as array of arrays)
+      const values = records.flat();
+
+      this.logger.debug({ dnsName, records: values }, "DNS TXT records found");
+
+      // Check if any record matches the challenge
+      if (values.includes(expectedChallenge)) {
+        this.logger.info({ address, domain }, "DNS verification successful");
+        this.challenges.delete(challengeKey);
+        return { success: true };
+      } else {
+        this.logger.warn(
+          { address, domain, expected: expectedChallenge, found: values },
+          "Challenge not found in DNS records"
+        );
+        return {
+          success: false,
+          error: "Challenge code not found in DNS TXT records",
+        };
+      }
+    } catch (error: any) {
+      this.logger.error({ error: error.message, address, domain }, "DNS verification failed");
+
+      // Handle common DNS errors
+      if (error.code === "ENODATA" || error.code === "ENOTFOUND") {
+        return {
+          success: false,
+          error: `DNS TXT record not found for _x402-verify.${domain}`,
+        };
+      }
+
+      return {
+        success: false,
+        error: error.message || "DNS verification failed",
+      };
     }
   }
 

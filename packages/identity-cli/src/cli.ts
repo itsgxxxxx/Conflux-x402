@@ -23,6 +23,11 @@ program
   .requiredOption("-d, --domain <domain>", "Domain to verify")
   .option("-a, --address <address>", "Client address (defaults to CLIENT_PRIVATE_KEY from env)")
   .option(
+    "-m, --method <method>",
+    "Verification method: http or dns",
+    "http"
+  )
+  .option(
     "--attestor <url>",
     "Attestor service URL",
     process.env.ATTESTOR_URL || "http://localhost:3003"

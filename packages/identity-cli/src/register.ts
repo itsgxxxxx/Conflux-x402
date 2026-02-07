@@ -22,6 +22,7 @@ const ZK_VERIFIER_ABI = [
 interface RegisterOptions {
   domain: string;
   address?: string;
+  method: "http" | "dns";
   attestor: string;
   rpc: string;
   registry?: string;
@@ -50,6 +51,7 @@ export async function register(options: RegisterOptions) {
 
     console.log(chalk.cyan("Domain:"), options.domain);
     console.log(chalk.cyan("Address:"), userAddress);
+    console.log(chalk.cyan("Method:"), options.method.toUpperCase());
     console.log(chalk.cyan("Attestor:"), options.attestor);
     console.log();
 
@@ -61,6 +63,7 @@ export async function register(options: RegisterOptions) {
       body: JSON.stringify({
         address: userAddress,
         domain: options.domain,
+        method: options.method,
       }),
     });
 
@@ -77,16 +80,29 @@ export async function register(options: RegisterOptions) {
     console.log();
     console.log(chalk.yellow("📝 Setup Instructions:"));
     console.log();
-    console.log(`  1. Set up your domain to respond to verification requests:`);
-    console.log(`     ${chalk.bold(challengeData.instructions)}`);
-    console.log();
-    console.log(`  2. The endpoint should return exactly:`);
-    console.log(`     ${chalk.bold(challengeData.challenge)}`);
-    console.log();
-    console.log(`  3. You can use the 'serve' command to test:`);
-    console.log(
-      `     ${chalk.gray(`x402-identity serve --challenge "${challengeData.challenge}" --port 8080`)}`
-    );
+
+    if (options.method === "dns") {
+      console.log(`  ${chalk.bold("Add a DNS TXT record:")}`);
+      console.log();
+      console.log(chalk.gray("  Name:  ") + chalk.bold(`_x402-verify.${options.domain}`));
+      console.log(chalk.gray("  Type:  ") + chalk.bold("TXT"));
+      console.log(chalk.gray("  Value: ") + chalk.bold(challengeData.challenge));
+      console.log();
+      console.log(chalk.yellow("  ⚠️  Note: DNS propagation may take a few minutes"));
+      console.log(chalk.gray("  You can check with: ") + `dig _x402-verify.${options.domain} TXT`);
+    } else {
+      console.log(`  1. Set up your domain to respond to verification requests:`);
+      console.log(`     ${chalk.bold(challengeData.instructions)}`);
+      console.log();
+      console.log(`  2. The endpoint should return exactly:`);
+      console.log(`     ${chalk.bold(challengeData.challenge)}`);
+      console.log();
+      console.log(`  3. You can use the 'serve' command to test:`);
+      console.log(
+        `     ${chalk.gray(`x402-identity serve --challenge "${challengeData.challenge}" --port 8080`)}`
+      );
+    }
+
     console.log();
     console.log(chalk.yellow(`⏰ Challenge expires in: ${challengeData.expiresIn}`));
     console.log();
@@ -114,13 +130,18 @@ export async function register(options: RegisterOptions) {
     }
 
     // Step 2: Request attestation (which will verify the endpoint)
-    spinner.start("Verifying domain ownership...");
+    const verifyMessage = options.method === "dns"
+      ? "Verifying DNS TXT record..."
+      : "Verifying domain ownership...";
+    spinner.start(verifyMessage);
+
     const attestRes = await fetch(`${options.attestor}/attest`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         address: userAddress,
         domain: options.domain,
+        method: options.method,
       }),
     });
 

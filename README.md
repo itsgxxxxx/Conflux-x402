@@ -71,10 +71,17 @@ Enable domain-based client authentication to restrict x402 payments to registere
 
 ### How it works
 
-1. **Registration**: Clients prove domain ownership via HTTP verification
+1. **Registration**: Clients prove domain ownership via HTTP or DNS verification
 2. **Attestation**: Attestor service validates and signs the claim
 3. **On-chain**: ZK verifier registers the identity in IdentityRegistry contract
 4. **Enforcement**: Facilitator checks identity before processing payments
+
+### Verification Methods
+
+- **HTTP Endpoint** (default): Fast, requires web server - `https://domain.com/verify?address=0x...`
+- **DNS TXT Record**: Industry standard, no server needed - `_x402-verify.domain.com TXT "challenge"`
+
+See [DNS Verification Guide](docs/DNS-VERIFICATION.md) for details.
 
 ### Quick setup
 
@@ -96,7 +103,12 @@ pnpm dev:attestor
 ```bash
 cd packages/identity-cli
 pnpm build
+
+# HTTP verification (fast, needs web server)
 node dist/cli.js register --domain example.com
+
+# DNS verification (recommended for production)
+node dist/cli.js register --domain example.com --method dns
 ```
 
 4. Enable identity gating in facilitator:

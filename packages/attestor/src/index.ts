@@ -58,6 +58,7 @@ app.get("/health", (req, res) => {
  * Body:
  *   - address: User's Ethereum address
  *   - domain: Domain to verify
+ *   - method: Verification method ("http" or "dns")
  *
  * Response:
  *   - signature: Attestor's signature
@@ -77,12 +78,12 @@ app.post("/attest", async (req, res) => {
       });
     }
 
-    const { address, domain } = validation.data;
+    const { address, domain, method } = validation.data;
 
-    logger.info({ address, domain }, "Received attestation request");
+    logger.info({ address, domain, method }, "Received attestation request");
 
     // Generate challenge
-    const challenge = verifier.generateChallenge(address, domain);
+    const challenge = verifier.generateChallenge(address, domain, method);
 
     // Verify domain ownership
     const verificationResult = await verifier.verifyDomain(address, domain);
@@ -141,15 +142,23 @@ app.post("/challenge", (req, res) => {
       });
     }
 
-    const { address, domain } = validation.data;
-    const challenge = verifier.generateChallenge(address, domain);
+    const { address, domain, method } = validation.data;
+    const challenge = verifier.generateChallenge(address, domain, method);
+
+    let instructions: string;
+    if (method === "dns") {
+      instructions = `Add a DNS TXT record:\n  Name: _x402-verify.${domain}\n  Type: TXT\n  Value: ${challenge}`;
+    } else {
+      instructions = `Place this challenge code at: https://${domain}/verify?address=${address}`;
+    }
 
     res.json({
       challenge,
       address,
       domain,
+      method,
       expiresIn: "5 minutes",
-      instructions: `Place this challenge code at: https://${domain}/verify?address=${address}`,
+      instructions,
     });
   } catch (error: any) {
     logger.error({ error: error.message }, "Challenge generation failed");
