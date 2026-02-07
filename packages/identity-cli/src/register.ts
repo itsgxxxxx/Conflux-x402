@@ -29,6 +29,24 @@ interface RegisterOptions {
   verifier?: string;
 }
 
+interface ChallengeData {
+  challenge: string;
+  instructions?: string;
+  expiresIn: string;
+}
+
+interface AttestationData {
+  domainHash: string;
+  expiry: number;
+  signature: string;
+}
+
+interface ErrorResponse {
+  message?: string;
+  error?: string;
+  challenge?: string;
+}
+
 export async function register(options: RegisterOptions) {
   console.log(chalk.bold("\n🎫 x402 Identity Registration\n"));
 
@@ -74,7 +92,7 @@ export async function register(options: RegisterOptions) {
       process.exit(1);
     }
 
-    const challengeData = await challengeRes.json();
+    const challengeData = await challengeRes.json() as ChallengeData;
     spinner.succeed(chalk.green("Challenge received"));
 
     console.log();
@@ -146,7 +164,7 @@ export async function register(options: RegisterOptions) {
     });
 
     if (!attestRes.ok) {
-      const error = await attestRes.json();
+      const error = await attestRes.json() as ErrorResponse;
       spinner.fail(chalk.red("Domain verification failed"));
       console.error(chalk.red(error.message || error.error));
       if (error.challenge) {
@@ -155,7 +173,7 @@ export async function register(options: RegisterOptions) {
       process.exit(1);
     }
 
-    const attestation = await attestRes.json();
+    const attestation = await attestRes.json() as AttestationData;
     spinner.succeed(chalk.green("Domain verified"));
 
     console.log(chalk.gray(`  Domain Hash: ${attestation.domainHash}`));
@@ -228,7 +246,11 @@ export async function register(options: RegisterOptions) {
     console.log();
   } catch (error) {
     spinner.fail(chalk.red("Registration failed"));
-    console.error(error);
+    if (error instanceof Error) {
+      console.error(error.message);
+    } else {
+      console.error(error);
+    }
     process.exit(1);
   }
 }
