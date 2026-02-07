@@ -223,6 +223,18 @@ app.post('/verify', async (req, res) => {
     res.json(response)
   } catch (error) {
     logger.error({ error }, 'verify endpoint error')
+
+    // Check if error is due to identity check failure
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    if (errorMessage.includes('IDENTITY_NOT_REGISTERED') || errorMessage.includes('PAYER_NOT_ALLOWED')) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: errorMessage.includes('IDENTITY_NOT_REGISTERED')
+          ? 'Identity not registered or expired'
+          : 'Payer not allowed',
+      })
+    }
+
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Unknown error',
     })
