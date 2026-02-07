@@ -6,6 +6,7 @@ import { resolve } from "path";
 import { register } from "./register.js";
 import { check } from "./check.js";
 import { serve } from "./serve.js";
+import { submit } from "./submit.js";
 
 // Load environment variables from root
 config({ path: resolve(process.cwd(), "../../.env") });
@@ -71,5 +72,24 @@ program
   .requiredOption("-c, --challenge <code>", "Challenge code to serve")
   .option("-p, --port <port>", "Port to listen on", "8080")
   .action(serve);
+
+program
+  .command("submit")
+  .description("Submit attestation proof to blockchain (skip verification)")
+  .requiredOption("-s, --signature <sig>", "Attestor signature (from /attest response)")
+  .requiredOption("-d, --domain-hash <hash>", "Domain hash (from /attest response)")
+  .requiredOption("-e, --expiry <timestamp>", "Expiry timestamp (from /attest response)")
+  .option("-a, --address <address>", "User address (defaults to CLIENT_PRIVATE_KEY from env)")
+  .option(
+    "--rpc <url>",
+    "RPC URL",
+    process.env.RPC_URL || "https://evm.confluxrpc.com"
+  )
+  .option(
+    "--verifier <address>",
+    "ZK verifier contract address",
+    process.env.ZK_VERIFIER_ADDRESS
+  )
+  .action(submit);
 
 program.parse();
