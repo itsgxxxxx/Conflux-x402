@@ -85,41 +85,124 @@ See [DNS Verification Guide](docs/DNS-VERIFICATION.md) for details.
 
 ### Quick setup
 
-1. Deploy contracts:
+#### 1. Deploy contracts
 
 ```bash
 cd packages/contracts
-pnpm run deploy --network confluxESpace
+pnpm run deploy --network confluxESpaceMainnet
 ```
 
-2. Start attestor service:
+Save the output addresses to `.env`:
+```bash
+IDENTITY_REGISTRY_ADDRESS=0x...
+ZK_VERIFIER_ADDRESS=0x...
+```
+
+#### 2. Start attestor service
 
 ```bash
 pnpm dev:attestor
 ```
 
-3. Register a client identity:
+#### 3. Register a client identity
+
+**Option A: Automatic (one command)**
 
 ```bash
 cd packages/identity-cli
 pnpm build
 
-# HTTP verification (fast, needs web server)
-node dist/cli.js register --domain example.com
+# DNS verification (recommended)
+node dist/cli.js register -d yourdomain.com -m dns
 
-# DNS verification (recommended for production)
-node dist/cli.js register --domain example.com --method dns
+# HTTP verification (for testing)
+node dist/cli.js register -d yourdomain.com -m http
 ```
 
-4. Enable identity gating in facilitator:
+**Option B: Manual (API + CLI submit)**
+
+Useful for production workflows or when you need to review the signature before submitting.
+
+```bash
+# Step 1: Get challenge from attestor
+curl -X POST http://localhost:3003/challenge \
+  -H "Content-Type: application/json" \
+  -d '{"address":"0xYourAddress","domain":"yourdomain.com","method":"dns"}'
+
+# Step 2: Add DNS TXT record (or set up HTTP endpoint)
+# _x402-verify.yourdomain.com TXT "x402-verify-..."
+
+# Step 3: Get attestation signature
+curl -X POST http://localhost:3003/attest \
+  -H "Content-Type: application/json" \
+  -d '{"address":"0xYourAddress","domain":"yourdomain.com","method":"dns"}'
+
+# Step 4: Submit proof to blockchain
+node dist/cli.js submit \
+  --signature "0x..." \
+  --domain-hash "0x..." \
+  --expiry "1773078778"
+```
+
+#### 4. Verify registration
+
+```bash
+node dist/cli.js check \
+  --address 0xYourAddress \
+  --registry 0xYourRegistryAddress
+```
+
+Should show: ✅ Identity is VALID
+
+#### 5. Enable identity gating in facilitator
 
 ```bash
 # In .env
 REQUIRE_IDENTITY=true
-IDENTITY_REGISTRY_ADDRESS=0x...  # From deployment
+IDENTITY_REGISTRY_ADDRESS=0xYourRegistryAddress
 ```
 
-See `docs/plans/2026-02-08-client-authentication-gating-design.md` for architecture details.
+Restart facilitator:
+```bash
+pnpm dev:facilitator
+```
+
+#### 6. Test the full flow
+
+```bash
+# Start server (if not running)
+pnpm dev:server
+
+# Test with registered client (should succeed)
+pnpm start:client
+
+# Test with unregistered client (should fail with 403)
+# Change CLIENT_PRIVATE_KEY to an unregistered address
+pnpm start:client
+```
+
+### CLI Commands Reference
+
+```bash
+# Register identity (automatic verification + on-chain submission)
+node dist/cli.js register -d domain.com -m dns
+
+# Submit pre-verified attestation (skip verification)
+node dist/cli.js submit -s 0xSig -d 0xHash -e timestamp
+
+# Check identity status
+node dist/cli.js check -a 0xAddress
+
+# Start local HTTP server for testing
+node dist/cli.js serve -c "challenge-code" -p 8080
+```
+
+### Documentation
+
+- **Architecture**: `docs/plans/2026-02-08-client-authentication-gating-design.md`
+- **DNS Verification Guide**: `docs/DNS-VERIFICATION.md`
+- **Deployment Guide**: `docs/DEPLOYMENT-GUIDE.md`
+- **Testing Guide**: `examples/test-dns-verification.md`
 
 ## Notes
 
