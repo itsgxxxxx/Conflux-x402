@@ -9,6 +9,7 @@ import type { ServerConfig } from './config.js'
 import { logger } from './logger.js'
 import { registerRoutes } from './routes/index.js'
 import { buildRoutes, toX402RoutesConfig } from './routes/config.js'
+import { createAuthCheckMiddleware } from './middleware/auth-check.js'
 
 export function createApp(config: ServerConfig): Express {
   const app = express()
@@ -22,6 +23,8 @@ export function createApp(config: ServerConfig): Express {
 
   // Setup x402 payment middleware
   if (config.paymentEnabled) {
+    // Pre-check middleware to intercept authorization failures and return 403
+    app.use(createAuthCheckMiddleware(config))
     const facilitatorClient = new HTTPFacilitatorClient({
       url: config.facilitatorUrl,
     })
