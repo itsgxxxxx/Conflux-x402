@@ -114,9 +114,8 @@ const facilitator = new x402Facilitator()
     const payer = extractPayerAddress(context.paymentPayload)
 
     // Authorization Strategy (mutually exclusive):
-    // 1. Identity-based (production): REQUIRE_IDENTITY=true
-    // 2. Allowlist-based (testing): ALLOWED_PAYER_ADDRESSES=0xabc,0xdef
-    // 3. No auth (dev only): both disabled
+    // Strategy 1: Identity-based → REQUIRE_IDENTITY=true, ALLOWED_PAYER_ADDRESSES empty
+    // Strategy 2: Allowlist-based → REQUIRE_IDENTITY=false, ALLOWED_PAYER_ADDRESSES set or empty
 
     if (config.requireIdentity) {
       // Strategy 1: On-chain identity verification
@@ -156,8 +155,8 @@ const facilitator = new x402Facilitator()
 
       logger.info({ payer }, 'allowlist check passed')
     } else {
-      // Strategy 3: No authorization (warn in production)
-      logger.warn('no authorization enabled (REQUIRE_IDENTITY=false, ALLOWED_PAYER_ADDRESSES empty)')
+      // Strategy 2 with empty allowlist: open access (warn in production)
+      logger.warn('no authorization enabled: REQUIRE_IDENTITY=false and ALLOWED_PAYER_ADDRESSES empty')
     }
 
     logger.info({ payer }, 'verify request received')

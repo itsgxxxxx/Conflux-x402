@@ -206,35 +206,35 @@ node dist/cli.js serve -c "challenge-code" -p 8080
 
 ## Authorization Strategies
 
-The facilitator supports **three mutually exclusive** authorization strategies:
+The facilitator uses **two mutually exclusive** authorization strategies:
 
-### 1. Identity-based (Production)
+### Strategy 1: Identity-based (Production)
 ```bash
 REQUIRE_IDENTITY=true
 IDENTITY_REGISTRY_ADDRESS=0x...
-ALLOWED_PAYER_ADDRESSES=   # Leave empty
+ALLOWED_PAYER_ADDRESSES=   # Must be empty
 ```
-Checks on-chain identity registration via IdentityRegistry contract. Clients must register their domain identity before making payments.
+Only clients with registered on-chain identity can make payments. Clients must complete domain verification and on-chain registration first.
 
-### 2. Allowlist-based (Testing)
+### Strategy 2: Allowlist-based (Testing/Development)
 ```bash
 REQUIRE_IDENTITY=false
-ALLOWED_PAYER_ADDRESSES=0xabc,0xdef   # Comma-separated
+ALLOWED_PAYER_ADDRESSES=0xabc,0xdef   # Comma-separated addresses
 ```
-Only allows payments from specified addresses. Useful for development and testing.
+Only specified addresses can pay. Leave empty to allow all addresses (**UNSAFE for production**).
 
-### 3. No authorization (Development only)
-```bash
-REQUIRE_IDENTITY=false
-ALLOWED_PAYER_ADDRESSES=   # Leave empty
-```
-No authorization checks. **UNSAFE for production.**
+## Configuration Layers
+
+### Authorization Layer (Who can pay?)
+- `REQUIRE_IDENTITY` vs `ALLOWED_PAYER_ADDRESSES` (mutually exclusive)
+- Controls **403 Forbidden** responses
+
+### Settlement Layer (Execute transactions?)
+- `VERIFY_ONLY_MODE` (independent control)
+- `true` = signature validation only, `false` = real on-chain settlement
 
 ## Notes
 
 - Network: Conflux eSpace Mainnet (`eip155:1030`)
 - Token: USDT0
-- `VERIFY_ONLY_MODE=true` validates signatures only; no on-chain settlement
-- Set `VERIFY_ONLY_MODE=false` to execute real settlement transactions
-- Identity gating is **optional** and disabled by default
 - Authorization failures return **403 Forbidden**, payment requirement failures return **402 Payment Required**
