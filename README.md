@@ -204,6 +204,32 @@ node dist/cli.js serve -c "challenge-code" -p 8080
 - **Deployment Guide**: `docs/DEPLOYMENT-GUIDE.md`
 - **Testing Guide**: `examples/test-dns-verification.md`
 
+## Authorization Strategies
+
+The facilitator supports **three mutually exclusive** authorization strategies:
+
+### 1. Identity-based (Production)
+```bash
+REQUIRE_IDENTITY=true
+IDENTITY_REGISTRY_ADDRESS=0x...
+ALLOWED_PAYER_ADDRESSES=   # Leave empty
+```
+Checks on-chain identity registration via IdentityRegistry contract. Clients must register their domain identity before making payments.
+
+### 2. Allowlist-based (Testing)
+```bash
+REQUIRE_IDENTITY=false
+ALLOWED_PAYER_ADDRESSES=0xabc,0xdef   # Comma-separated
+```
+Only allows payments from specified addresses. Useful for development and testing.
+
+### 3. No authorization (Development only)
+```bash
+REQUIRE_IDENTITY=false
+ALLOWED_PAYER_ADDRESSES=   # Leave empty
+```
+No authorization checks. **UNSAFE for production.**
+
 ## Notes
 
 - Network: Conflux eSpace Mainnet (`eip155:1030`)
@@ -211,3 +237,4 @@ node dist/cli.js serve -c "challenge-code" -p 8080
 - `VERIFY_ONLY_MODE=true` validates signatures only; no on-chain settlement
 - Set `VERIFY_ONLY_MODE=false` to execute real settlement transactions
 - Identity gating is **optional** and disabled by default
+- Authorization failures return **403 Forbidden**, payment requirement failures return **402 Payment Required**
