@@ -113,19 +113,23 @@ const facilitator = new x402Facilitator()
   .onBeforeVerify(async (context) => {
     const payer = extractPayerAddress(context.paymentPayload)
 
-    // Check allowlist
-    if (payer && !isAllowedPayer(payer, config)) {
-      logger.warn({
-        payer,
-        payerLower: payer.toLowerCase(),
-        allowedList: config.allowedPayerAddresses,
-        isInList: config.allowedPayerAddresses.includes(payer.toLowerCase())
-      }, 'payer not in allowlist')
-      return { abort: true, reason: 'PAYER_NOT_ALLOWED' }
-    }
+    // Authorization Strategy (mutually exclusive):
+    // 1. Identity-based (production): REQUIRE_IDENTITY=true
+    // 2. Allowlist-based (testing): ALLOWED_PAYER_ADDRESSES=0xabc,0xdef
+    // 3. No auth (dev only): both disabled
 
-    // Check identity if enabled
-    if (config.requireIdentity && payer && config.identityRegistryAddress) {
+    if (config.requireIdentity) {
+      // Strategy 1: On-chain identity verification
+      if (!config.identityRegistryAddress) {
+        logger.error('IDENTITY_REGISTRY_ADDRESS required when REQUIRE_IDENTITY=true')
+        throw new Error('IDENTITY_REGISTRY_ADDRESS required when REQUIRE_IDENTITY=true')
+      }
+
+      if (!payer) {
+        logger.warn('no payer address found in payment payload')
+        return { abort: true, reason: 'IDENTITY_NOT_REGISTERED' }
+      }
+
       logger.info({ payer, registryAddress: config.identityRegistryAddress }, 'checking identity')
       const identityCheck = await checkIdentity(
         payer,
@@ -138,6 +142,22 @@ const facilitator = new x402Facilitator()
         logger.warn({ payer, error: identityCheck.error }, 'identity check failed')
         return { abort: true, reason: 'IDENTITY_NOT_REGISTERED' }
       }
+
+      logger.info({ payer }, 'identity verified')
+    } else if (config.allowedPayerAddresses.length > 0) {
+      // Strategy 2: Simple allowlist
+      if (payer && !isAllowedPayer(payer, config)) {
+        logger.warn({
+          payer,
+          allowedList: config.allowedPayerAddresses,
+        }, 'payer not in allowlist')
+        return { abort: true, reason: 'PAYER_NOT_ALLOWED' }
+      }
+
+      logger.info({ payer }, 'allowlist check passed')
+    } else {
+      // Strategy 3: No authorization (warn in production)
+      logger.warn('no authorization enabled (REQUIRE_IDENTITY=false, ALLOWED_PAYER_ADDRESSES empty)')
     }
 
     logger.info({ payer }, 'verify request received')
