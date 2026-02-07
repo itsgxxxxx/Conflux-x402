@@ -73,13 +73,14 @@ function extractPayerAddress(paymentPayload: PaymentPayload): string | undefined
     authorization?: { from?: string }
     permit2Authorization?: { from?: string }
   }
+  let address: string | undefined
   if (typeof payload?.authorization?.from === 'string') {
-    return payload.authorization.from
+    address = payload.authorization.from
+  } else if (typeof payload?.permit2Authorization?.from === 'string') {
+    address = payload.permit2Authorization.from
   }
-  if (typeof payload?.permit2Authorization?.from === 'string') {
-    return payload.permit2Authorization.from
-  }
-  return undefined
+  // Normalize address: trim whitespace and convert to lowercase for consistent comparison
+  return address ? address.trim().toLowerCase() : undefined
 }
 
 function derivePaymentId(paymentPayload: PaymentPayload): string {
