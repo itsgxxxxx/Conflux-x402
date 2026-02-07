@@ -13,6 +13,7 @@ import { loadConfig } from './config.js'
 import { logger } from './logger.js'
 import { isAlreadySettled, recordSettlement } from './idempotency.js'
 import { isAllowedPayer, checkTransactionLimits, recordFailure, recordSuccessfulPayment, getCircuitBreakerStatus } from './rate-limiter.js'
+import { checkIdentity } from './identity-check.js'
 
 const envPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../.env')
 const dotenvResult = dotenv.config({ path: envPath })
@@ -111,15 +112,34 @@ function derivePaymentId(paymentPayload: PaymentPayload): string {
 const facilitator = new x402Facilitator()
   .onBeforeVerify(async (context) => {
     const payer = extractPayerAddress(context.paymentPayload)
+
+    // Check allowlist
     if (payer && !isAllowedPayer(payer, config)) {
-      logger.warn({ 
-        payer, 
+      logger.warn({
+        payer,
         payerLower: payer.toLowerCase(),
         allowedList: config.allowedPayerAddresses,
         isInList: config.allowedPayerAddresses.includes(payer.toLowerCase())
       }, 'payer not in allowlist')
       return { abort: true, reason: 'PAYER_NOT_ALLOWED' }
     }
+
+    // Check identity if enabled
+    if (config.requireIdentity && payer && config.identityRegistryAddress) {
+      logger.info({ payer, registryAddress: config.identityRegistryAddress }, 'checking identity')
+      const identityCheck = await checkIdentity(
+        payer,
+        config.identityRegistryAddress,
+        viemClient,
+        logger
+      )
+
+      if (!identityCheck.isValid) {
+        logger.warn({ payer, error: identityCheck.error }, 'identity check failed')
+        return { abort: true, reason: 'IDENTITY_NOT_REGISTERED' }
+      }
+    }
+
     logger.info({ payer }, 'verify request received')
   })
   .onAfterVerify(async (context) => {
@@ -270,6 +290,10 @@ app.get('/health', (_req, res) => {
   res.json({
     status: cb.isOpen ? 'degraded' : 'ok',
     verifyOnlyMode: config.verifyOnlyMode,
+    identityGating: {
+      enabled: config.requireIdentity,
+      registryAddress: config.identityRegistryAddress,
+    },
     circuitBreaker: cb,
     network: config.network,
   })

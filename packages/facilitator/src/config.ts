@@ -22,6 +22,13 @@ const FacilitatorConfigSchema = z.object({
   maxDailyTotal: z.coerce.number().default(10.0),
   circuitBreakerThreshold: z.coerce.number().default(10),
 
+  // Identity gating
+  identityRegistryAddress: z.string().startsWith('0x').optional(),
+  requireIdentity: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+
   // Gas
   gasBufferPercent: z.coerce.number().default(50),
 })
@@ -39,6 +46,8 @@ export function loadConfig(): FacilitatorConfig {
     maxPerTransaction: process.env.MAX_PER_TRANSACTION,
     maxDailyTotal: process.env.MAX_DAILY_TOTAL,
     circuitBreakerThreshold: process.env.CIRCUIT_BREAKER_THRESHOLD,
+    identityRegistryAddress: process.env.IDENTITY_REGISTRY_ADDRESS,
+    requireIdentity: process.env.REQUIRE_IDENTITY,
     gasBufferPercent: process.env.GAS_BUFFER_PERCENT,
   })
 }

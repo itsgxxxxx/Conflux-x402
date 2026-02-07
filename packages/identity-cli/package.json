@@ -1,0 +1,26 @@
+{
+  "name": "@conflux-x402/identity-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CLI tool for registering client identities",
+  "bin": {
+    "x402-identity": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli.js"
+  },
+  "dependencies": {
+    "@conflux-x402/chain-config": "workspace:*",
+    "dotenv": "^16.4.0",
+    "viem": "^2.21.0",
+    "commander": "^12.0.0",
+    "ora": "^8.0.1",
+    "chalk": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.6.0"
+  }
+}
