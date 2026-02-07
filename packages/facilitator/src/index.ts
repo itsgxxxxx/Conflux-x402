@@ -211,12 +211,22 @@ app.post('/settle', async (req, res) => {
     const response: SettleResponse = await facilitator.settle(paymentPayload, paymentRequirements)
     res.json(response)
   } catch (error) {
-    logger.error({ error }, 'settle endpoint error')
+    logger.error({ error, errorType: typeof error, errorString: String(error) }, 'settle endpoint error')
 
-    if (error instanceof Error && error.message.includes('Settlement aborted:')) {
+    // Handle settlement abort (verify-only mode, rate limits, etc.)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStr = JSON.stringify(error)
+    
+    // Check for various abort reasons
+    if (errorMessage.includes('Settlement aborted:') || 
+        errorMessage.includes('VERIFY_ONLY_MODE') ||
+        errorStr.includes('VERIFY_ONLY_MODE')) {
+      const reason = errorMessage.includes('Settlement aborted:') 
+        ? errorMessage.replace('Settlement aborted: ', '')
+        : 'VERIFY_ONLY_MODE'
       res.json({
         success: false,
-        errorReason: error.message.replace('Settlement aborted: ', ''),
+        errorReason: reason,
         transaction: '',
         network: req.body?.paymentPayload?.accepted?.network ?? config.network,
       } as SettleResponse)
@@ -224,7 +234,8 @@ app.post('/settle', async (req, res) => {
     }
 
     res.status(500).json({
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errorMessage || 'Settlement failed',
+      details: errorMessage || errorStr,
     })
   }
 })
