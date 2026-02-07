@@ -15,11 +15,19 @@ import { isAlreadySettled, recordSettlement } from './idempotency.js'
 import { isAllowedPayer, checkTransactionLimits, recordFailure, recordSuccessfulPayment, getCircuitBreakerStatus } from './rate-limiter.js'
 
 const envPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../.env')
-dotenv.config({ path: envPath })
+const dotenvResult = dotenv.config({ path: envPath })
 
 const config = loadConfig()
 
-logger.info({ network: config.network, verifyOnly: config.verifyOnlyMode }, 'loading facilitator config')
+logger.info({ 
+  network: config.network, 
+  verifyOnly: config.verifyOnlyMode,
+  verifyOnlyModeEnv: process.env.VERIFY_ONLY_MODE,
+  envPath,
+  dotenvLoaded: !!dotenvResult.parsed,
+  allowedPayerAddresses: config.allowedPayerAddresses,
+  allowlistCount: config.allowedPayerAddresses.length
+}, 'loading facilitator config')
 
 const account = privateKeyToAccount(config.privateKey as `0x${string}`)
 logger.info({ address: account.address }, 'facilitator wallet')
@@ -104,7 +112,12 @@ const facilitator = new x402Facilitator()
   .onBeforeVerify(async (context) => {
     const payer = extractPayerAddress(context.paymentPayload)
     if (payer && !isAllowedPayer(payer, config)) {
-      logger.warn({ payer }, 'payer not in allowlist')
+      logger.warn({ 
+        payer, 
+        payerLower: payer.toLowerCase(),
+        allowedList: config.allowedPayerAddresses,
+        isInList: config.allowedPayerAddresses.includes(payer.toLowerCase())
+      }, 'payer not in allowlist')
       return { abort: true, reason: 'PAYER_NOT_ALLOWED' }
     }
     logger.info({ payer }, 'verify request received')
