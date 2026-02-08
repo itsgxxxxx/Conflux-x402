@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import http from 'node:http'
 import test from 'node:test'
 import { CONFLUX_ESPACE_MAINNET } from '@conflux-x402/chain-config'
 import { createApp } from '../dist/app.js'
@@ -84,4 +85,25 @@ test('app creates successfully with refund config', () => {
 
   // App should create without error with refund system wired in
   assert.ok(app, 'app should exist')
+})
+
+test('weather handler sets refund headers when demo_refund query param is set', async () => {
+  const app = createApp(createConfig({
+    paymentEnabled: false,
+    refundDefault: 'off',
+  }))
+
+  const server = http.createServer(app)
+  await new Promise((resolve) => server.listen(0, resolve))
+  const port = server.address().port
+
+  const res = await fetch(`http://localhost:${port}/sandbox/weather?demo_refund=1`)
+  const body = await res.json()
+
+  assert.equal(body.ok, false)
+  assert.equal(body.error, 'SIMULATED_FAILURE')
+  assert.equal(res.headers.get('x-refund-requested'), '1')
+  assert.equal(res.headers.get('x-refund-status'), 'pending')
+
+  server.close()
 })
