@@ -10,6 +10,7 @@ import { loadMcpConfig } from './config.js'
 import { checkBalanceTool } from './tools/check-balance.js'
 import { paymentHistoryTool } from './tools/payment-history.js'
 import { payFetchTool } from './tools/pay-fetch.js'
+import { discoverAgentsTool } from './tools/discover-agents.js'
 
 // --- Zod schemas for MCP tool argument validation ---
 
@@ -28,6 +29,13 @@ const CheckBalanceArgsSchema = z.object({})
 
 const PaymentHistoryArgsSchema = z.object({
   limit: z.number().int().min(1).max(100).optional().default(10),
+})
+
+const DiscoverAgentsArgsSchema = z.object({
+  capability: z.string().min(1, 'capability is required'),
+  limit: z.number().int().min(1).max(50).optional().default(5),
+  max_scan: z.number().int().min(1).max(5000).optional().default(200),
+  include_bazaar: z.boolean().optional().default(true),
 })
 
 const config = loadMcpConfig()
@@ -99,6 +107,32 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
         },
       },
+      {
+        name: 'x402_discover_agents',
+        description: 'Discover registered agents on Conflux eSpace by capability',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            capability: {
+              type: 'string',
+              description: 'Capability string used at registration (e.g. "movie-info")',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum number of agents to return (default: 5)',
+            },
+            max_scan: {
+              type: 'number',
+              description: 'Maximum agent IDs to scan from registry (default: 200)',
+            },
+            include_bazaar: {
+              type: 'boolean',
+              description: 'Fetch /.well-known/x402-bazaar.json for each agent (default: true)',
+            },
+          },
+          required: ['capability'],
+        },
+      },
     ],
   }
 })
@@ -127,6 +161,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'x402_payment_history': {
         const args = PaymentHistoryArgsSchema.parse(rawArgs)
         const result = paymentHistoryTool(args.limit)
+        return {
+          content: [{ type: 'text', text: result }],
+        }
+      }
+
+      case 'x402_discover_agents': {
+        const args = DiscoverAgentsArgsSchema.parse(rawArgs)
+        const result = await discoverAgentsTool(args, config)
         return {
           content: [{ type: 'text', text: result }],
         }

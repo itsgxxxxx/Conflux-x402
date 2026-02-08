@@ -95,23 +95,23 @@ References:
 
 ## Chain discovery + bazaar (optional)
 
-Deploy and register discovery contracts:
+1. Deploy registry:
 
 ```bash
-pnpm --filter @conflux-x402/contracts deploy:registry
-pnpm register:chart-agent
+pnpm --filter @conflux-x402/contracts deploy:registry --network confluxESpaceMainnet
 ```
 
-Run buyer discovery demo:
+2. Register agent:
 
 ```bash
-pnpm start:buyer-agent
+pnpm --filter @conflux-x402/registry-cli start
 ```
 
-References:
+Required env:
+`AGENT_REGISTRY_ADDRESS`, `AGENT_ENDPOINT`, `AGENT_CAPABILITIES`, `AGENT_PRICE`, `EVM_PRIVATE_KEY`
 
-- `docs/plans/2026-02-08-chain-discovery-bazaar-design.md`
-- `docs/plans/2026-02-08-chain-discovery-bazaar-impl.md`
+3. Verify:
+`https://<your-agent-domain>/.well-known/x402-bazaar.json`
 
 ## Notes
 
