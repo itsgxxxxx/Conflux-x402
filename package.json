@@ -11,6 +11,8 @@
     "dev:moviememo": "pnpm --filter @conflux-x402/moviememo dev",
     "dev:attestor": "pnpm --filter @conflux-x402/attestor dev",
     "register:chart-agent": "pnpm --filter @conflux-x402/sandbox register:chart-agent",
+    "register:moviememo-agent": "pnpm --filter @conflux-x402/moviememo register:moviememo-agent",
+    "register:agent": "pnpm --filter @conflux-x402/registry-cli start",
     "start:client": "pnpm --filter @conflux-x402/client start",
     "start:client:manual": "pnpm --filter @conflux-x402/client start:manual",
     "start:buyer-agent": "pnpm --filter @conflux-x402/buyer-agent start",
