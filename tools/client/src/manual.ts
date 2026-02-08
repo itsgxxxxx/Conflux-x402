@@ -5,6 +5,7 @@ import { createInterface } from 'node:readline/promises'
 import type { PaymentRequired } from '@x402/core/types'
 import { loadClientConfig } from './config.js'
 import { createPaymentFetch } from './pay-and-fetch.js'
+import { signRequest } from './sign-request.js'
 import { logger } from './logger.js'
 
 const envPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../.env')
@@ -41,16 +42,35 @@ async function confirmPayment(): Promise<boolean> {
   }
 }
 
+async function getAuthHeaders(config: ReturnType<typeof loadClientConfig>, viemClient: ReturnType<typeof createPaymentFetch>['viemClient'], url: string) {
+  if (!config.authEnabled) return {}
+  return signRequest(viemClient, {
+    method: 'GET',
+    url,
+    chainId: config.chainId,
+  })
+}
+
 async function main() {
   const config = loadClientConfig()
-  const { account, httpClient } = createPaymentFetch(config)
+  const { account, httpClient, viemClient } = createPaymentFetch(config)
   const url = `${config.serverUrl}/sandbox/weather`
 
-  logger.info({ address: account.address, server: config.serverUrl, url }, 'manual client initialized')
+  logger.info({ address: account.address, server: config.serverUrl, url, authEnabled: config.authEnabled }, 'manual client initialized')
   logger.info('step 1: sending unpaid request')
 
-  const firstResponse = await fetch(url)
+  // First request: may need auth headers to avoid 403 before getting 402
+  const firstHeaders = await getAuthHeaders(config, viemClient, url)
+  const firstResponse = await fetch(url, {
+    headers: firstHeaders as Record<string, string>,
+  })
   logger.info({ status: firstResponse.status }, 'first response received')
+
+  if (firstResponse.status === 403) {
+    const body = await firstResponse.json().catch(() => firstResponse.text())
+    logger.error({ status: 403, body }, 'access denied: identity not registered or authentication failed')
+    return
+  }
 
   if (firstResponse.status !== 402) {
     const unexpectedBody = await firstResponse.text()
@@ -83,8 +103,14 @@ async function main() {
   const paymentHeaders = httpClient.encodePaymentSignatureHeader(paymentPayload)
 
   logger.info('step 3: retrying request with payment signature')
+
+  // Second request: auth headers + payment headers
+  const retryAuthHeaders = await getAuthHeaders(config, viemClient, url)
   const paidResponse = await fetch(url, {
-    headers: paymentHeaders,
+    headers: {
+      ...paymentHeaders,
+      ...retryAuthHeaders as Record<string, string>,
+    },
   })
 
   const paymentResponseHeader = paidResponse.headers.get('payment-response')

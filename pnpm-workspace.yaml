@@ -2,3 +2,8 @@ packages:
   - "packages/*"
   - "tools/*"
   - "examples/*"
+
+onlyBuiltDependencies:
+  - bufferutil
+  - esbuild
+  - utf-8-validate

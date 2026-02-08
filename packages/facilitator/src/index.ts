@@ -13,14 +13,22 @@ import { loadConfig } from './config.js'
 import { logger } from './logger.js'
 import { isAlreadySettled, recordSettlement } from './idempotency.js'
 import { isAllowedPayer, checkTransactionLimits, recordFailure, recordSuccessfulPayment, getCircuitBreakerStatus } from './rate-limiter.js'
+import { checkIdentity } from './identity-check.js'
 
 const envPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../.env')
 const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public')
-dotenv.config({ path: envPath })
+const dotenvResult = dotenv.config({ path: envPath })
 
 const config = loadConfig()
 
-logger.info({ network: config.network, verifyOnly: config.verifyOnlyMode }, 'loading facilitator config')
+logger.info({
+  network: config.network,
+  verifyOnly: config.verifyOnlyMode,
+  verifyOnlyModeEnv: process.env.VERIFY_ONLY_MODE,
+  envPath,
+  dotenvLoaded: !!dotenvResult.parsed,
+  hasApiKey: !!config.facilitatorApiKey,
+}, 'loading facilitator config')
 
 const account = privateKeyToAccount(config.privateKey as `0x${string}`)
 logger.info({ address: account.address }, 'facilitator wallet')
@@ -74,13 +82,13 @@ function extractPayerAddress(paymentPayload: PaymentPayload): string | undefined
     authorization?: { from?: string }
     permit2Authorization?: { from?: string }
   }
+  let address: string | undefined
   if (typeof payload?.authorization?.from === 'string') {
-    return payload.authorization.from
+    address = payload.authorization.from
+  } else if (typeof payload?.permit2Authorization?.from === 'string') {
+    address = payload.permit2Authorization.from
   }
-  if (typeof payload?.permit2Authorization?.from === 'string') {
-    return payload.permit2Authorization.from
-  }
-  return undefined
+  return address ? address.trim().toLowerCase() : undefined
 }
 
 function derivePaymentId(paymentPayload: PaymentPayload): string {
@@ -103,10 +111,31 @@ function derivePaymentId(paymentPayload: PaymentPayload): string {
 const facilitator = new x402Facilitator()
   .onBeforeVerify(async (context) => {
     const payer = extractPayerAddress(context.paymentPayload)
+
     if (payer && !isAllowedPayer(payer, config)) {
       logger.warn({ payer }, 'payer not in allowlist')
       return { abort: true, reason: 'PAYER_NOT_ALLOWED' }
     }
+
+    // Observe-only identity logging (defense-in-depth, never rejects)
+    if (config.identityRegistryAddress && payer) {
+      try {
+        const identityCheck = await checkIdentity(
+          payer,
+          config.identityRegistryAddress,
+          viemClient as unknown as Parameters<typeof checkIdentity>[2],
+          logger,
+        )
+        if (!identityCheck.isValid) {
+          logger.warn({ payer, error: identityCheck.error }, 'observe: identity check would have failed')
+        } else {
+          logger.debug({ payer }, 'observe: identity check passed')
+        }
+      } catch (error) {
+        logger.warn({ payer, error: error instanceof Error ? error.message : String(error) }, 'observe: identity check error')
+      }
+    }
+
     logger.info({ payer }, 'verify request received')
   })
   .onAfterVerify(async (context) => {
@@ -120,23 +149,20 @@ const facilitator = new x402Facilitator()
     recordFailure(config)
   })
   .onBeforeSettle(async (context) => {
-    // Verify-only mode
     if (config.verifyOnlyMode) {
       logger.info('verify-only mode: settlement blocked')
       return { abort: true, reason: 'VERIFY_ONLY_MODE' }
     }
 
-    // Idempotency check
     const paymentId = derivePaymentId(context.paymentPayload)
     if (isAlreadySettled(paymentId)) {
       logger.warn({ paymentId }, 'duplicate settlement attempt')
       return { abort: true, reason: 'ALREADY_SETTLED' }
     }
 
-    // Rate limit check
     const payer = extractPayerAddress(context.paymentPayload)
     if (payer) {
-      const amountUsd = Number(context.requirements.amount) / 1e6 // USDT0 has 6 decimals
+      const amountUsd = Number(context.requirements.amount) / 1e6
       const limitCheck = checkTransactionLimits(payer, amountUsd, config)
       if (!limitCheck.allowed) {
         logger.warn({ payer, reason: limitCheck.reason }, 'rate limit exceeded')
@@ -179,6 +205,20 @@ app.get('/', (_req, res) => {
   res.sendFile(path.join(publicDir, 'index.html'))
 })
 
+if (config.facilitatorApiKey) {
+  app.use((req, res, next) => {
+    if (req.path === '/health') return next()
+
+    const apiKey = req.headers['x-api-key']
+    if (apiKey !== config.facilitatorApiKey) {
+      logger.warn({ path: req.path, hasKey: !!apiKey }, 'API key validation failed')
+      return res.status(401).json({ error: 'Unauthorized', message: 'Invalid or missing API key' })
+    }
+    next()
+  })
+  logger.info('API key protection enabled')
+}
+
 app.post('/verify', async (req, res) => {
   try {
     const { paymentPayload, paymentRequirements } = req.body as {
@@ -216,12 +256,20 @@ app.post('/settle', async (req, res) => {
     const response: SettleResponse = await facilitator.settle(paymentPayload, paymentRequirements)
     res.json(response)
   } catch (error) {
-    logger.error({ error }, 'settle endpoint error')
+    logger.error({ error, errorType: typeof error, errorString: String(error) }, 'settle endpoint error')
 
-    if (error instanceof Error && error.message.includes('Settlement aborted:')) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStr = JSON.stringify(error)
+
+    if (errorMessage.includes('Settlement aborted:') ||
+        errorMessage.includes('VERIFY_ONLY_MODE') ||
+        errorStr.includes('VERIFY_ONLY_MODE')) {
+      const reason = errorMessage.includes('Settlement aborted:')
+        ? errorMessage.replace('Settlement aborted: ', '')
+        : 'VERIFY_ONLY_MODE'
       res.json({
         success: false,
-        errorReason: error.message.replace('Settlement aborted: ', ''),
+        errorReason: reason,
         transaction: '',
         network: req.body?.paymentPayload?.accepted?.network ?? config.network,
       } as SettleResponse)
@@ -229,7 +277,8 @@ app.post('/settle', async (req, res) => {
     }
 
     res.status(500).json({
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errorMessage || 'Settlement failed',
+      details: errorMessage || errorStr,
     })
   }
 })
@@ -262,6 +311,7 @@ app.listen(config.port, () => {
       port: config.port,
       network: config.network,
       verifyOnly: config.verifyOnlyMode,
+      hasApiKey: !!config.facilitatorApiKey,
       allowlist: config.allowedPayerAddresses.length > 0 ? config.allowedPayerAddresses.length : 'disabled',
     },
     'facilitator started',

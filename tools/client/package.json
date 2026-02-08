@@ -9,7 +9,8 @@
     "build": "tsc",
     "start": "tsx src/index.ts",
     "start:manual": "tsx src/manual.ts",
-    "dev": "tsx --watch src/index.ts"
+    "dev": "tsx --watch src/index.ts",
+    "test": "pnpm --filter @conflux-x402/chain-config build && pnpm --filter @conflux-x402/express-middleware build && pnpm --filter @conflux-x402/sandbox build && pnpm build && node --test test/**/*.test.mjs"
   },
   "dependencies": {
     "@conflux-x402/chain-config": "workspace:*",
