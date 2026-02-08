@@ -4,14 +4,21 @@ import { CONFLUX_ESPACE_MAINNET } from '@conflux-x402/chain-config'
 import { createApp } from '../dist/app.js'
 import { buildRoutes, toX402RoutesConfig } from '../dist/routes/config.js'
 
-test('x402 route conversion uses exact scheme with USDT0 asset', () => {
-  const config = {
+function createConfig(overrides = {}) {
+  return {
     port: 4021,
     facilitatorUrl: 'http://localhost:4022',
     evmAddress: '0x1111111111111111111111111111111111111111',
     paymentEnabled: true,
+    authMode: 'none',
+    rpcUrl: 'https://evm.confluxrpc.com',
+    chainId: 1030,
+    ...overrides,
   }
+}
 
+test('x402 route conversion uses exact scheme with USDT0 asset', () => {
+  const config = createConfig()
   const routes = buildRoutes(config)
   const x402Routes = toX402RoutesConfig(routes, config)
   const weatherRoute = x402Routes['GET /sandbox/weather']
@@ -23,12 +30,7 @@ test('x402 route conversion uses exact scheme with USDT0 asset', () => {
 })
 
 test('app registers health and sandbox routes when payment is disabled', () => {
-  const app = createApp({
-    port: 4021,
-    facilitatorUrl: 'http://localhost:4022',
-    evmAddress: '0x1111111111111111111111111111111111111111',
-    paymentEnabled: false,
-  })
+  const app = createApp(createConfig({ paymentEnabled: false }))
 
   const routeLayers = app._router.stack
     .filter((layer) => layer.route)
