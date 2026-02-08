@@ -5,107 +5,94 @@ A developer toolkit for running x402 payments on Conflux eSpace mainnet with USD
 ## What is implemented
 
 - End-to-end x402 payment flow on Conflux (`eip155:1030`)
-- Custom facilitator service (`verify` / `settle` / `supported`)
-- Express API examples with protected paid routes (`/sandbox/*`, `/api/*`)
-- MCP server tool for agent-driven x402 payments
-- Client auto-payment mode (automatic `402 -> sign -> retry`)
-- Client manual-payment mode (user confirms before signing)
-- Safety controls: allowlist, limits, verify-only switch, circuit breaker
-
-## Architecture
-
-```mermaid
-graph TB
-  subgraph core [Core Infrastructure]
-    CC[chain-config]
-    F[facilitator]
-    EM["express-middleware"]
-  end
-
-  subgraph tools [Agent Tools]
-    MCP[mcp-server]
-    CLI[client]
-  end
-
-  subgraph examples [Example Apps]
-    SB[sandbox]
-    MM[moviememo]
-  end
-
-  CC --> F
-  CC --> EM
-  CC --> MCP
-  CC --> CLI
-
-  EM --> SB
-  EM --> MM
-
-  F -.->|"HTTP: verify/settle"| SB
-  F -.->|"HTTP: verify/settle"| MM
-  MCP -.->|"pays via x402"| SB
-  MCP -.->|"pays via x402"| MM
-  CLI -.->|"pays via x402"| SB
-```
+- Custom facilitator service (`/verify`, `/settle`, `/supported`)
+- Example paid APIs (`examples/sandbox`, `examples/moviememo`)
+- MCP payment tool server (`tools/mcp-server`)
+- Auto/manual client payment flows (`tools/client`)
+- Optional auth gate (wallet signature + IdentityRegistry check)
+- Clean `403` (auth) before `402` (payment)
+- Optional async refund pipeline with status query endpoint
 
 ## Repository layout
 
-- **Core (`packages/`)**
-  - `packages/chain-config` - chain/token constants and shared types
-  - `packages/facilitator` - facilitator service
-  - `packages/express-middleware` - shared x402 Express middleware
-- **Tools (`tools/`)**
-  - `tools/mcp-server` - MCP server for agent payments
-  - `tools/client` - auto/manual payment clients
-- **Examples (`examples/`)**
-  - `examples/sandbox` - minimal x402-protected API
-  - `examples/moviememo` - MovieMemo paid API demo
+- `packages/chain-config`: shared chain/token constants and types
+- `packages/express-middleware`: reusable x402 express middleware
+- `packages/facilitator`: facilitator service
+- `packages/contracts`: identity-gating contracts
+- `packages/attestor`: domain attestation service
+- `packages/identity-cli`: identity registration/check CLI
+- `examples/sandbox`: sandbox paid API with auth gate + refund flow
+- `examples/moviememo`: MovieMemo paid API demo
+- `tools/client`: x402 payment client
+- `tools/mcp-server`: MCP server with x402 payment tools
 
 ## Quick start
 
-1. Install dependencies:
-
 ```bash
 pnpm install
-```
-
-2. Create and fill environment file:
-
-```bash
 cp .env.example .env
 ```
 
-Required values:
+Required minimum values:
 
-- `FACILITATOR_PRIVATE_KEY` (with `0x` prefix)
-- `CLIENT_PRIVATE_KEY` (with `0x` prefix)
-- `EVM_ADDRESS` (payee address)
+- `FACILITATOR_PRIVATE_KEY`
+- `CLIENT_PRIVATE_KEY`
+- `EVM_ADDRESS`
 
-3. Start services:
+Start core services:
 
 ```bash
 pnpm dev:facilitator
 pnpm dev:sandbox
 ```
 
-## Client modes
-
-### Auto mode
+Client:
 
 ```bash
 pnpm start:client
-```
-
-### Manual mode
-
-```bash
 pnpm start:client:manual
 ```
 
-Manual mode first fetches a `402` response, prints payment requirements, and waits for explicit user confirmation (`yes/no`) before signing and retrying.
+## Identity gating (optional)
+
+1. Deploy contracts in `packages/contracts`.
+2. Start attestor: `pnpm dev:attestor`.
+3. Register identity with `packages/identity-cli`.
+4. Enable:
+
+```bash
+AUTH_MODE=domain_gate
+IDENTITY_REGISTRY_ADDRESS=0x...
+AUTH_ENABLED=true
+```
+
+References:
+
+- `docs/plans/2026-02-08-client-authentication-gating-design.md`
+- `docs/plans/2026-02-08-server-side-auth-gate-design.md`
+- `docs/DNS-VERIFICATION.md`
+
+## Refund flow (optional)
+
+Enable defaults in `.env`:
+
+```bash
+REFUND_DEFAULT=on
+SERVER_PRIVATE_KEY=0x...
+```
+
+Query refund record:
+
+```bash
+GET /refunds/:requestId
+```
+
+References:
+
+- `docs/plans/2026-02-08-async-refund-design.md`
+- `docs/plans/2026-02-08-async-refund-impl.md`
 
 ## Notes
 
-- Network: Conflux eSpace Mainnet (`eip155:1030`)
-- Token: USDT0
-- `VERIFY_ONLY_MODE=true` validates signatures only; no on-chain settlement
-- Set `VERIFY_ONLY_MODE=false` to execute real settlement transactions
+- `dev:server` is kept as an alias to `dev:sandbox` for compatibility.
+- `VERIFY_ONLY_MODE=true` means no on-chain settlement execution.
