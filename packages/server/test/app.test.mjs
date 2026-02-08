@@ -75,3 +75,13 @@ test('buildRoutes includes refund policy when configured', () => {
   assert.ok(weather.refund !== undefined, 'weather route should have refund field')
   assert.equal(weather.refund.enabled, true)
 })
+
+test('app creates successfully with refund config', () => {
+  const app = createApp(createConfig({
+    paymentEnabled: false,
+    refundDefault: 'off',
+  }))
+
+  // App should create without error with refund system wired in
+  assert.ok(app, 'app should exist')
+})
