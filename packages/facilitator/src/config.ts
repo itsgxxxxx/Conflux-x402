@@ -28,6 +28,9 @@ const FacilitatorConfigSchema = z.object({
   // Identity registry (observe-only logging, not enforcement)
   identityRegistryAddress: z.string().startsWith('0x').optional(),
 
+  // Agent registry (for bazaar discovery)
+  agentRegistryAddress: z.string().startsWith('0x').optional(),
+
   // Gas
   gasBufferPercent: z.coerce.number().default(50),
 })
@@ -47,6 +50,7 @@ export function loadConfig(): FacilitatorConfig {
     circuitBreakerThreshold: process.env.CIRCUIT_BREAKER_THRESHOLD,
     facilitatorApiKey: process.env.FACILITATOR_API_KEY,
     identityRegistryAddress: process.env.IDENTITY_REGISTRY_ADDRESS,
+    agentRegistryAddress: process.env.AGENT_REGISTRY_ADDRESS,
     gasBufferPercent: process.env.GAS_BUFFER_PERCENT,
   })
 }
