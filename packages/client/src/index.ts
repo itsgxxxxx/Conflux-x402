@@ -11,7 +11,7 @@ dotenv.config({ path: envPath })
 const config = loadClientConfig()
 const { fetchWithPay, account } = createPaymentFetch(config)
 
-logger.info({ address: account.address, server: config.serverUrl }, 'client initialized')
+logger.info({ address: account.address, server: config.serverUrl, authEnabled: config.authEnabled }, 'client initialized')
 
 async function main() {
   const url = `${config.serverUrl}/sandbox/weather`

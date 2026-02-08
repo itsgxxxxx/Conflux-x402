@@ -6,6 +6,7 @@ import { registerExactEvmScheme } from '@x402/evm/exact/client'
 import { x402HTTPClient } from '@x402/core/client'
 import { confluxESpace, CONFLUX_ESPACE_MAINNET } from '@conflux-x402/chain-config'
 import type { ClientConfig } from './config.js'
+import { signRequest } from './sign-request.js'
 
 export function createPaymentFetch(config: ClientConfig) {
   const account = privateKeyToAccount(config.privateKey as `0x${string}`)
@@ -30,7 +31,36 @@ export function createPaymentFetch(config: ClientConfig) {
   })
 
   const httpClient = new x402HTTPClient(client)
-  const fetchWithPay = wrapFetchWithPayment(fetch, client)
 
-  return { fetchWithPay, account, client, httpClient }
+  // Wrap fetch to add auth headers when enabled
+  const baseFetchWithPay = wrapFetchWithPayment(fetch, client)
+
+  const fetchWithPay = config.authEnabled
+    ? async (url: string | URL | Request, init?: RequestInit) => {
+        const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.toString() : url.url
+        const method = init?.method ?? 'GET'
+        const body = init?.body ? String(init.body) : undefined
+
+        const authHeaders = await signRequest(viemClient, {
+          method,
+          url: urlStr,
+          body,
+          chainId: config.chainId,
+        })
+
+        const mergedInit: RequestInit = {
+          ...init,
+          headers: {
+            ...Object.fromEntries(
+              new Headers(init?.headers).entries(),
+            ),
+            ...authHeaders,
+          },
+        }
+
+        return baseFetchWithPay(url, mergedInit)
+      }
+    : baseFetchWithPay
+
+  return { fetchWithPay, account, client, httpClient, viemClient }
 }
