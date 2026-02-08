@@ -15,6 +15,7 @@ import { isAlreadySettled, recordSettlement } from './idempotency.js'
 import { isAllowedPayer, checkTransactionLimits, recordFailure, recordSuccessfulPayment, getCircuitBreakerStatus } from './rate-limiter.js'
 
 const envPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../.env')
+const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public')
 dotenv.config({ path: envPath })
 
 const config = loadConfig()
@@ -172,6 +173,11 @@ registerExactEvmScheme(facilitator, {
 
 const app = express()
 app.use(express.json())
+app.use(express.static(publicDir))
+
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'index.html'))
+})
 
 app.post('/verify', async (req, res) => {
   try {
