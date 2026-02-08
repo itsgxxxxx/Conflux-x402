@@ -9,8 +9,9 @@ A developer toolkit for running x402 payments on Conflux eSpace mainnet with USD
 - Express API server with protected paid route (`GET /sandbox/weather`)
 - Client auto-payment mode (automatic `402 -> sign -> retry`)
 - Client manual-payment mode (user confirms before signing)
-- Safety controls: allowlist, limits, verify-only switch, circuit breaker
-- **Identity gating**: Domain-based client authentication using ZK proofs (optional)
+- Safety controls: rate limits, verify-only switch, circuit breaker
+- **Identity gating**: Optional domain-based client authentication with cryptographic request signatures
+- **Clean 403/402 separation**: Auth failures (403) happen before the payment layer (402)
 
 ## Monorepo packages
 
@@ -74,7 +75,7 @@ Enable domain-based client authentication to restrict x402 payments to registere
 1. **Registration**: Clients prove domain ownership via HTTP or DNS verification
 2. **Attestation**: Attestor service validates and signs the claim
 3. **On-chain**: ZK verifier registers the identity in IdentityRegistry contract
-4. **Enforcement**: Facilitator checks identity before processing payments
+4. **Enforcement**: Server checks identity before the x402 payment layer (clean 403 vs 402 separation)
 
 ### Verification Methods
 
@@ -154,25 +155,29 @@ node dist/cli.js check \
 
 Should show: ✅ Identity is VALID
 
-#### 5. Enable identity gating in facilitator
+#### 5. Enable identity gating
 
 ```bash
-# In .env
-REQUIRE_IDENTITY=true
+# In .env (server side)
+AUTH_MODE=domain_gate
 IDENTITY_REGISTRY_ADDRESS=0xYourRegistryAddress
+
+# In .env (client side)
+AUTH_ENABLED=true
+
+# Optional: protect facilitator with API key
+FACILITATOR_API_KEY=your-secret-key
 ```
 
-Restart facilitator:
+Restart services:
 ```bash
 pnpm dev:facilitator
+pnpm dev:server
 ```
 
 #### 6. Test the full flow
 
 ```bash
-# Start server (if not running)
-pnpm dev:server
-
 # Test with registered client (should succeed)
 pnpm start:client
 
@@ -204,30 +209,48 @@ node dist/cli.js serve -c "challenge-code" -p 8080
 - **Deployment Guide**: `docs/DEPLOYMENT-GUIDE.md`
 - **Testing Guide**: `examples/test-dns-verification.md`
 
-## Authorization Strategies
+## Auth Gate (Server-Side)
 
-The facilitator uses **two mutually exclusive** authorization strategies:
+The server uses an optional auth gate that runs **before** the x402 payment middleware. This ensures clean semantic separation: auth failures return **403 Forbidden** and payment failures return **402 Payment Required**.
 
-### Strategy 1: Identity-based (Production)
+### AUTH_MODE=none (default)
+
+No authentication. All clients go straight to the x402 payment flow.
+
 ```bash
-REQUIRE_IDENTITY=true
+AUTH_MODE=none
+```
+
+### AUTH_MODE=domain_gate
+
+Clients must sign each request with their wallet key. The server recovers the payer address from the signature and checks the on-chain IdentityRegistry.
+
+```bash
+# Server
+AUTH_MODE=domain_gate
 IDENTITY_REGISTRY_ADDRESS=0x...
-ALLOWED_PAYER_ADDRESSES=   # Must be empty
-```
-Only clients with registered on-chain identity can make payments. Clients must complete domain verification and on-chain registration first.
 
-### Strategy 2: Allowlist-based (Testing/Development)
-```bash
-REQUIRE_IDENTITY=false
-ALLOWED_PAYER_ADDRESSES=0xabc,0xdef   # Comma-separated addresses
+# Client
+AUTH_ENABLED=true
 ```
-Only specified addresses can pay. Leave empty to allow all addresses (**UNSAFE for production**).
+
+**Request signature protocol:** The client signs `keccak256("X402-AUTH" || chainId || host || method || path || bodyHash || nonce || expiry)` using `personal_sign`. The server recovers the payer address (never trusts a header value) and checks `IdentityRegistry.isValid(payer)`.
+
+### Facilitator API Key
+
+The facilitator can be protected with a shared API key to prevent direct access bypass:
+
+```bash
+FACILITATOR_API_KEY=your-secret-key   # Set in both server and facilitator .env
+```
+
+When set, the facilitator rejects requests without a valid `X-API-Key` header (except `/health`).
 
 ## Configuration Layers
 
-### Authorization Layer (Who can pay?)
-- `REQUIRE_IDENTITY` vs `ALLOWED_PAYER_ADDRESSES` (mutually exclusive)
-- Controls **403 Forbidden** responses
+### Auth Layer (Who can access?)
+- `AUTH_MODE` on the server controls **403 Forbidden** responses
+- Runs before the payment layer
 
 ### Settlement Layer (Execute transactions?)
 - `VERIFY_ONLY_MODE` (independent control)
@@ -237,4 +260,6 @@ Only specified addresses can pay. Leave empty to allow all addresses (**UNSAFE f
 
 - Network: Conflux eSpace Mainnet (`eip155:1030`)
 - Token: USDT0
-- Authorization failures return **403 Forbidden**, payment requirement failures return **402 Payment Required**
+- Auth failures return **403 Forbidden** (before payment layer)
+- Payment failures return **402 Payment Required** (from x402 middleware)
+- See `docs/plans/2026-02-08-server-side-auth-gate-design.md` for full architecture details
