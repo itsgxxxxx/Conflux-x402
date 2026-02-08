@@ -4,6 +4,7 @@ import { movieInfoHandler } from './movie-info.js'
 import { careerTrendsHandler } from './career-trends.js'
 import { soundtrackHandler } from './soundtrack.js'
 import { nlpHandler } from './nlp.js'
+import { wellKnownBazaarHandler } from './well-known.js'
 
 export function registerRoutes(app: Express): void {
   // Health check (free)
@@ -11,6 +12,9 @@ export function registerRoutes(app: Express): void {
 
   // Natural language entry (free)
   app.post('/nlp', nlpHandler)
+
+  // Well-known bazaar metadata (free)
+  app.get('/.well-known/x402-bazaar.json', wellKnownBazaarHandler)
 
   // Paid endpoints
   app.post('/api/movie-info', movieInfoHandler)

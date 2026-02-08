@@ -1,9 +1,11 @@
 packages:
-  - "packages/*"
-  - "tools/*"
-  - "examples/*"
+  - packages/*
+  - tools/*
+  - examples/*
 
 onlyBuiltDependencies:
   - bufferutil
   - esbuild
+  - keccak
+  - secp256k1
   - utf-8-validate
