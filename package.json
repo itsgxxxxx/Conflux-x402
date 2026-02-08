@@ -7,8 +7,10 @@
     "build": "pnpm -r build",
     "dev:facilitator": "pnpm --filter @conflux-x402/facilitator dev",
     "dev:server": "pnpm --filter @conflux-x402/server dev",
+    "dev:moviememo": "pnpm --filter @conflux-x402/moviememo dev",
     "start:client": "pnpm --filter @conflux-x402/client start",
     "start:client:manual": "pnpm --filter @conflux-x402/client start:manual",
+    "start:mcp": "pnpm --filter @conflux-x402/mcp-server start",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test"
   },

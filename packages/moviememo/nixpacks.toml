@@ -1,0 +1,18 @@
+[phases.setup]
+nixPkgs = ["nodejs-18_x", "pnpm"]
+
+[phases.install]
+cmds = [
+  "cd /app",
+  "pnpm install --frozen-lockfile"
+]
+
+[phases.build]
+cmds = [
+  "cd /app",
+  "pnpm --filter @conflux-x402/chain-config build",
+  "pnpm --filter @conflux-x402/moviememo build"
+]
+
+[start]
+cmd = "cd packages/moviememo && node dist/index.js"
