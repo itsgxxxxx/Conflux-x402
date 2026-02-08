@@ -1,5 +1,5 @@
 {
-  "name": "@conflux-x402/moviememo",
+  "name": "@conflux-x402/sandbox",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,10 +8,12 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx --watch src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "pnpm build && node --test test/**/*.test.mjs"
   },
   "dependencies": {
     "@conflux-x402/chain-config": "workspace:*",
+    "@conflux-x402/express-middleware": "workspace:*",
     "@x402/core": "^2.3.0",
     "@x402/evm": "^2.3.0",
     "@x402/express": "^2.3.0",

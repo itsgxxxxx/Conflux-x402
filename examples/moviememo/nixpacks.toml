@@ -11,8 +11,9 @@ cmds = [
 cmds = [
   "cd /app",
   "pnpm --filter @conflux-x402/chain-config build",
+  "pnpm --filter @conflux-x402/express-middleware build",
   "pnpm --filter @conflux-x402/moviememo build"
 ]
 
 [start]
-cmd = "cd packages/moviememo && node dist/index.js"
+cmd = "cd examples/moviememo && node dist/index.js"

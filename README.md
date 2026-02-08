@@ -6,17 +6,59 @@ A developer toolkit for running x402 payments on Conflux eSpace mainnet with USD
 
 - End-to-end x402 payment flow on Conflux (`eip155:1030`)
 - Custom facilitator service (`verify` / `settle` / `supported`)
-- Express API server with protected paid route (`GET /sandbox/weather`)
+- Express API examples with protected paid routes (`/sandbox/*`, `/api/*`)
+- MCP server tool for agent-driven x402 payments
 - Client auto-payment mode (automatic `402 -> sign -> retry`)
 - Client manual-payment mode (user confirms before signing)
 - Safety controls: allowlist, limits, verify-only switch, circuit breaker
 
-## Monorepo packages
+## Architecture
 
-- `packages/chain-config` - chain/token constants and shared types
-- `packages/facilitator` - facilitator service
-- `packages/server` - protected API server
-- `packages/client` - auto and manual payment clients
+```mermaid
+graph TB
+  subgraph core [Core Infrastructure]
+    CC[chain-config]
+    F[facilitator]
+    EM["express-middleware"]
+  end
+
+  subgraph tools [Agent Tools]
+    MCP[mcp-server]
+    CLI[client]
+  end
+
+  subgraph examples [Example Apps]
+    SB[sandbox]
+    MM[moviememo]
+  end
+
+  CC --> F
+  CC --> EM
+  CC --> MCP
+  CC --> CLI
+
+  EM --> SB
+  EM --> MM
+
+  F -.->|"HTTP: verify/settle"| SB
+  F -.->|"HTTP: verify/settle"| MM
+  MCP -.->|"pays via x402"| SB
+  MCP -.->|"pays via x402"| MM
+  CLI -.->|"pays via x402"| SB
+```
+
+## Repository layout
+
+- **Core (`packages/`)**
+  - `packages/chain-config` - chain/token constants and shared types
+  - `packages/facilitator` - facilitator service
+  - `packages/express-middleware` - shared x402 Express middleware
+- **Tools (`tools/`)**
+  - `tools/mcp-server` - MCP server for agent payments
+  - `tools/client` - auto/manual payment clients
+- **Examples (`examples/`)**
+  - `examples/sandbox` - minimal x402-protected API
+  - `examples/moviememo` - MovieMemo paid API demo
 
 ## Quick start
 
@@ -42,7 +84,7 @@ Required values:
 
 ```bash
 pnpm dev:facilitator
-pnpm dev:server
+pnpm dev:sandbox
 ```
 
 ## Client modes
