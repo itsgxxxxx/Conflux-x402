@@ -1,9 +1,11 @@
 import express from 'express'
 import type { Express } from 'express'
+import { createPublicClient, http } from 'viem'
 import { paymentMiddleware } from '@x402/express'
 import { ExactEvmScheme } from '@x402/evm/exact/server'
 import { HTTPFacilitatorClient } from '@x402/core/server'
 import { x402ResourceServer } from '@x402/express'
+import { confluxESpace } from '@conflux-x402/chain-config'
 import { CONFLUX_ESPACE_MAINNET } from '@conflux-x402/chain-config'
 import type { ServerConfig } from './config.js'
 import { logger } from './logger.js'
@@ -21,12 +23,33 @@ export function createApp(config: ServerConfig): Express {
 
   logger.info({ routes: Object.keys(x402Routes) }, 'x402 protected routes')
 
+  // Setup auth gate middleware (before x402)
+  if (config.authMode !== 'none') {
+    const publicClient = createPublicClient({
+      chain: confluxESpace,
+      transport: http(config.rpcUrl),
+    })
+
+    app.use(createAuthCheckMiddleware({ config, publicClient }))
+
+    logger.info(
+      { authMode: config.authMode, registryAddress: config.identityRegistryAddress },
+      'auth gate enabled',
+    )
+  } else {
+    logger.info('auth gate disabled (AUTH_MODE=none)')
+  }
+
   // Setup x402 payment middleware
   if (config.paymentEnabled) {
-    // Pre-check middleware to intercept authorization failures and return 403
-    app.use(createAuthCheckMiddleware(config))
     const facilitatorClient = new HTTPFacilitatorClient({
       url: config.facilitatorUrl,
+      ...(config.facilitatorApiKey && {
+        createAuthHeaders: async () => {
+          const h = { 'X-API-Key': config.facilitatorApiKey! }
+          return { verify: h, settle: h, supported: h }
+        },
+      }),
     })
 
     const exactEvmScheme = new ExactEvmScheme()
