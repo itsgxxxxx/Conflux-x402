@@ -10,7 +10,7 @@ import { confluxESpace } from '@conflux-x402/chain-config'
 import { CONFLUX_ESPACE_MAINNET } from '@conflux-x402/chain-config'
 import type { ServerConfig } from './config.js'
 import { logger } from './logger.js'
-import { registerRoutes } from './routes/index.js'
+import { registerPublicRoutes, registerRoutes } from './routes/index.js'
 import { buildRoutes, toX402RoutesConfig } from './routes/config.js'
 import { createAuthCheckMiddleware } from './middleware/auth-check.js'
 import { createRefundWrapper } from './middleware/refund-wrapper.js'
@@ -36,6 +36,7 @@ const ERC20_TRANSFER_ABI = [
 export function createApp(config: ServerConfig): Express {
   const app = express()
   app.use(express.json())
+  registerPublicRoutes(app)
 
   // Build route configs
   const gateRoutes = buildRoutes(config)

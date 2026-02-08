@@ -43,6 +43,15 @@ export function buildRoutes(_serverConfig: ServerConfig): Record<string, GateRou
       resourceId: 'weather',
       refund: { enabled: true },
     }),
+    'GET /chart/render': GateRouteConfigSchema.parse({
+      enableIdentity: false,
+      enablePayment: true,
+      price: '$0.001',
+      amount: '1000',
+      description: 'Chart generation from structured data',
+      mimeType: 'application/json',
+      resourceId: 'chart-render',
+    }),
   }
 }
 
