@@ -65,22 +65,20 @@ function validateUrl(rawUrl: string): URL {
 }
 
 function extractSettlementInfo(response: Response): {
-  amount: string
   txHash: string
 } {
   const paymentResponseHeader = response.headers.get('payment-response')
   if (!paymentResponseHeader) {
-    return { amount: '0', txHash: 'none' }
+    return { txHash: 'none' }
   }
 
   try {
     const settlement = decodePaymentResponseHeader(paymentResponseHeader)
     return {
-      amount: settlement.transaction ? '0' : '0',
       txHash: settlement.transaction || 'unknown',
     }
   } catch {
-    return { amount: '0', txHash: 'unknown' }
+    return { txHash: 'unknown' }
   }
 }
 
@@ -115,13 +113,21 @@ export async function payFetchTool(
       headers: { 'Content-Type': 'application/json', ...headers },
     })
 
+    let requestedAmountRaw: string | null = null
+    let requestedAmountNumeric: number | null = null
+
     if (preflight.status === 402) {
       const preflightBody = await preflight.clone().text()
-      const requestedAmount = parseRequestedAmount(preflight, preflightBody)
+      const parsedAmount = parseRequestedAmount(preflight, preflightBody)
+      requestedAmountRaw = parsedAmount.raw
+      requestedAmountNumeric = parsedAmount.numeric
 
-      if (requestedAmount !== null && requestedAmount > effectiveMaxPayment) {
+      if (
+        requestedAmountNumeric !== null &&
+        requestedAmountNumeric > effectiveMaxPayment
+      ) {
         return (
-          `Error: Requested payment amount (${requestedAmount} USDT0) ` +
+          `Error: Requested payment amount (${requestedAmountNumeric} USDT0) ` +
           `exceeds max_payment limit (${effectiveMaxPayment} USDT0). ` +
           `Increase max_payment or choose a cheaper endpoint.`
         )
@@ -147,15 +153,8 @@ export async function payFetchTool(
     const responseText = await response.text()
 
     // Extract actual payment info from x402 response headers
-    const { amount: settledAmount, txHash } =
-      extractSettlementInfo(response)
-
-    // Use the requested amount from the 402 flow as the recorded amount
-    // since the settlement header may not include the dollar amount directly
-    const recordedAmount =
-      settledAmount !== '0'
-        ? settledAmount
-        : parseRequestedAmountFromResponse(response) ?? '0'
+    const { txHash } = extractSettlementInfo(response)
+    const recordedAmount = requestedAmountRaw ?? '0'
 
     recordPayment({
       url: validatedUrl.toString(),
@@ -183,39 +182,33 @@ export async function payFetchTool(
 function parseRequestedAmount(
   response: Response,
   bodyText: string,
-): number | null {
+): { raw: string | null; numeric: number | null } {
   try {
     const paymentRequiredHeader = response.headers.get('payment-required')
     if (paymentRequiredHeader) {
       const paymentRequired =
         decodePaymentRequiredHeader(paymentRequiredHeader)
       if (paymentRequired.accepts?.length > 0) {
-        return parseFloat(paymentRequired.accepts[0].amount)
+        const raw = paymentRequired.accepts[0].amount
+        const numeric = parseFloat(raw)
+        return {
+          raw,
+          numeric: Number.isNaN(numeric) ? null : numeric,
+        }
       }
     }
 
     const parsed = JSON.parse(bodyText)
     if (parsed?.accepts?.length > 0) {
-      return parseFloat(parsed.accepts[0].amount)
+      const raw = String(parsed.accepts[0].amount)
+      const numeric = parseFloat(raw)
+      return {
+        raw,
+        numeric: Number.isNaN(numeric) ? null : numeric,
+      }
     }
   } catch {
     // Unable to parse payment amount from preflight response
   }
-  return null
-}
-
-function parseRequestedAmountFromResponse(response: Response): string | null {
-  try {
-    const paymentResponseHeader = response.headers.get('payment-response')
-    if (!paymentResponseHeader) {
-      return null
-    }
-    const settlement = decodePaymentResponseHeader(paymentResponseHeader)
-    if (settlement.success) {
-      return settlement.transaction ? '0' : null
-    }
-  } catch {
-    // Unable to parse payment amount from response
-  }
-  return null
+  return { raw: null, numeric: null }
 }
