@@ -23,11 +23,14 @@ test('x402 route conversion uses exact scheme with USDT0 asset', () => {
   const routes = buildRoutes(config)
   const x402Routes = toX402RoutesConfig(routes, config)
   const weatherRoute = x402Routes['GET /sandbox/weather']
+  const chartRoute = x402Routes['GET /chart/render']
 
   assert.ok(weatherRoute)
+  assert.ok(chartRoute)
   assert.equal(weatherRoute.accepts[0].scheme, 'exact')
   assert.equal(weatherRoute.accepts[0].price.asset, CONFLUX_ESPACE_MAINNET.token.address)
   assert.equal(weatherRoute.accepts[0].price.amount, '1000')
+  assert.equal(chartRoute.accepts[0].price.amount, '1000')
 })
 
 test('app registers health and sandbox routes when payment is disabled', () => {
@@ -42,9 +45,13 @@ test('app registers health and sandbox routes when payment is disabled', () => {
 
   const hasHealth = routeLayers.some((route) => route.path === '/health' && route.methods.includes('get'))
   const hasSandbox = routeLayers.some((route) => route.path === '/sandbox/weather' && route.methods.includes('get'))
+  const hasChart = routeLayers.some((route) => route.path === '/chart/render' && route.methods.includes('get'))
+  const hasWellKnown = routeLayers.some((route) => route.path === '/.well-known/x402-bazaar.json' && route.methods.includes('get'))
 
   assert.equal(hasHealth, true)
   assert.equal(hasSandbox, true)
+  assert.equal(hasChart, true)
+  assert.equal(hasWellKnown, true)
 })
 
 test('loadServerConfig reads REFUND_DEFAULT and SERVER_PRIVATE_KEY', async () => {

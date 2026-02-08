@@ -14,6 +14,7 @@ import { logger } from './logger.js'
 import { isAlreadySettled, recordSettlement } from './idempotency.js'
 import { isAllowedPayer, checkTransactionLimits, recordFailure, recordSuccessfulPayment, getCircuitBreakerStatus } from './rate-limiter.js'
 import { checkIdentity } from './identity-check.js'
+import { createBazaarRouter } from './discovery/bazaar.js'
 
 const envPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../.env')
 const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public')
@@ -294,6 +295,16 @@ app.get('/supported', (_req, res) => {
     })
   }
 })
+
+if (config.agentRegistryAddress) {
+  const bazaarRouter = createBazaarRouter(
+    viemClient,
+    config.agentRegistryAddress as `0x${string}`,
+    config.network,
+  )
+  app.use(bazaarRouter)
+  logger.info({ registryAddress: config.agentRegistryAddress }, 'bazaar discovery enabled')
+}
 
 app.get('/health', (_req, res) => {
   const cb = getCircuitBreakerStatus()
