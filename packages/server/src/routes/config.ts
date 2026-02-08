@@ -11,17 +11,25 @@ const PolicySchema = z.union([
   }),
 ])
 
+const RefundPolicySchema = z.object({
+  enabled: z.boolean().optional(),
+  windowSec: z.number().optional(),
+}).optional()
+
 const GateRouteConfigSchema = z.object({
   enableIdentity: z.boolean().default(false),
   policy: PolicySchema.optional(),
   enablePayment: z.boolean().default(true),
   price: z.string().optional(),
+  amount: z.string().optional(),   // raw units for refund (e.g. '1000' = 0.001 USDT0)
   description: z.string(),
   mimeType: z.string().default('application/json'),
   resourceId: z.string().optional(),
+  refund: RefundPolicySchema,
 })
 
 export type GateRouteConfig = z.infer<typeof GateRouteConfigSchema>
+export type RefundPolicy = z.infer<typeof RefundPolicySchema>
 
 export function buildRoutes(serverConfig: ServerConfig): Record<string, GateRouteConfig> {
   return {
@@ -29,9 +37,11 @@ export function buildRoutes(serverConfig: ServerConfig): Record<string, GateRout
       enableIdentity: false,
       enablePayment: true,
       price: '$0.001',
+      amount: '1000',
       description: 'Weather data',
       mimeType: 'application/json',
       resourceId: 'weather',
+      refund: { enabled: true },
     }),
   }
 }

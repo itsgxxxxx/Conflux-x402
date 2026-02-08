@@ -64,3 +64,14 @@ test('loadServerConfig reads REFUND_DEFAULT and SERVER_PRIVATE_KEY', async () =>
   delete process.env.REFUND_DEFAULT
   delete process.env.SERVER_PRIVATE_KEY
 })
+
+test('buildRoutes includes refund policy when configured', () => {
+  const config = createConfig()
+  const routes = buildRoutes(config)
+  const weather = routes['GET /sandbox/weather']
+
+  assert.ok(weather)
+  // After implementation, weather route should have refund config
+  assert.ok(weather.refund !== undefined, 'weather route should have refund field')
+  assert.equal(weather.refund.enabled, true)
+})
