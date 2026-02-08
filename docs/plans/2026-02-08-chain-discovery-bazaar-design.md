@@ -11,9 +11,9 @@
 | Component | Location | What it does |
 |-----------|----------|-------------|
 | AgentRegistry contract | `packages/contracts/contracts/AgentRegistry.sol` | On-chain "capability → endpoint" registry |
-| Seller (chart routes) | `packages/server` (added routes) | `/chart/render` behind x402 + `/.well-known/x402-bazaar.json` metadata |
+| Seller (chart routes) | `examples/sandbox` (added routes) | `/chart/render` behind x402 + `/.well-known/x402-bazaar.json` metadata |
 | Bazaar discovery | `packages/facilitator` (added route) | `GET /discovery/resources` — reads chain + fetches endpoint metadata |
-| Buyer Agent | `packages/buyer-agent` (new package) | Event subscription → bazaar query → 402→pay→retry |
+| Buyer Agent | `tools/buyer-agent` (new package) | Event subscription → bazaar query → 402→pay→retry |
 
 **Not doing:** off-chain indexer, healthcheck, reputation, frontend, complex ranking.
 
@@ -69,7 +69,7 @@ Hardhat script `scripts/deploy-registry.ts` → Conflux eSpace mainnet (1030).
 
 ## 3. Seller: Chart Routes + Bazaar Metadata
 
-Added to existing `packages/server`.
+Added to existing `examples/sandbox`.
 
 ### New Route: `GET /chart/render`
 
@@ -181,7 +181,7 @@ Add `AGENT_REGISTRY_ADDRESS` to facilitator config (address of deployed AgentReg
 
 ## 5. Buyer Agent
 
-New package: `packages/buyer-agent`.
+New package: `tools/buyer-agent`.
 
 ### Discovery
 
@@ -219,7 +219,7 @@ RPC_URL                         (default: https://evm.confluxrpc.com)
 ### Package Structure
 
 ```
-packages/buyer-agent/
+tools/buyer-agent/
   src/
     index.ts              # Main demo script
     config.ts             # Env config
@@ -237,7 +237,7 @@ packages/buyer-agent/
 
 ```
 Terminal 1: pnpm dev:facilitator
-Terminal 2: pnpm dev:server
+Terminal 2: pnpm dev:sandbox
 Terminal 3: pnpm start:buyer-agent
 
 Buyer Agent output:
@@ -273,7 +273,7 @@ For the demo, `buyer-agent` also runs the `registerAgent()` tx itself (so you do
 | Package | Files Added/Modified |
 |---------|---------------------|
 | `packages/contracts` | `contracts/AgentRegistry.sol`, `scripts/deploy-registry.ts`, `test/AgentRegistry.test.ts` |
-| `packages/server` | `src/routes/chart.ts`, `src/routes/well-known.ts`, `src/routes/config.ts` (mod), `src/app.ts` (mod), `scripts/register-chart-agent.ts` |
+| `examples/sandbox` | `src/routes/chart.ts`, `src/routes/well-known.ts`, `src/routes/config.ts` (mod), `src/app.ts` (mod), `scripts/register-chart-agent.ts` |
 | `packages/facilitator` | `src/discovery/bazaar.ts`, `src/discovery/chain-reader.ts`, `src/discovery/metadata-cache.ts`, `src/index.ts` (mod), `src/config.ts` (mod) |
-| `packages/buyer-agent` | New package — `package.json`, `tsconfig.json`, `src/index.ts`, `src/config.ts`, `src/discovery/chain-scanner.ts`, `src/discovery/bazaar-client.ts`, `src/agent.ts` |
+| `tools/buyer-agent` | New package — `package.json`, `tsconfig.json`, `src/index.ts`, `src/config.ts`, `src/discovery/chain-scanner.ts`, `src/discovery/bazaar-client.ts`, `src/agent.ts` |
 | root | `package.json` (add `start:buyer-agent` script), `pnpm-workspace.yaml` (already includes `packages/*`) |

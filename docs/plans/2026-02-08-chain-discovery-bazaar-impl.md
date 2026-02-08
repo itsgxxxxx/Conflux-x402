@@ -38,10 +38,10 @@
 ## Step 3: Seller — Chart Route + Well-Known Metadata
 
 **Files:**
-- `packages/server/src/routes/chart.ts`
-- `packages/server/src/routes/well-known.ts`
-- `packages/server/src/routes/config.ts` (modify)
-- `packages/server/src/app.ts` (modify)
+- `examples/sandbox/src/routes/chart.ts`
+- `examples/sandbox/src/routes/well-known.ts`
+- `examples/sandbox/src/routes/config.ts` (modify)
+- `examples/sandbox/src/app.ts` (modify)
 
 **Tasks:**
 1. Add chart route handler returning mock chart JSON
@@ -49,7 +49,7 @@
 3. Add `/chart/render` to route config with price $0.001
 4. Wire both routes into app.ts
 
-**Done when:** `pnpm dev:server` starts, `GET /.well-known/x402-bazaar.json` returns metadata, `GET /chart/render` returns 402 (when payment enabled).
+**Done when:** `pnpm dev:sandbox` starts, `GET /.well-known/x402-bazaar.json` returns metadata, `GET /chart/render` returns 402 (when payment enabled).
 
 ---
 
@@ -76,13 +76,13 @@
 ## Step 5: Buyer Agent Package
 
 **Files:**
-- `packages/buyer-agent/package.json`
-- `packages/buyer-agent/tsconfig.json`
-- `packages/buyer-agent/src/config.ts`
-- `packages/buyer-agent/src/discovery/chain-scanner.ts`
-- `packages/buyer-agent/src/discovery/bazaar-client.ts`
-- `packages/buyer-agent/src/agent.ts`
-- `packages/buyer-agent/src/index.ts`
+- `tools/buyer-agent/package.json`
+- `tools/buyer-agent/tsconfig.json`
+- `tools/buyer-agent/src/config.ts`
+- `tools/buyer-agent/src/discovery/chain-scanner.ts`
+- `tools/buyer-agent/src/discovery/bazaar-client.ts`
+- `tools/buyer-agent/src/agent.ts`
+- `tools/buyer-agent/src/index.ts`
 - Root `package.json` (add `start:buyer-agent` script)
 
 **Tasks:**
@@ -103,7 +103,7 @@
 ## Step 6: Registration Script
 
 **Files:**
-- `packages/server/scripts/register-chart-agent.ts`
+- `examples/sandbox/scripts/register-chart-agent.ts`
 
 **Tasks:**
 1. Write script that calls `AgentRegistry.registerAgent()` with server endpoint, USDT0 address, price 1000, capability `keccak256("chart-generation")`
@@ -118,7 +118,7 @@
 1. Deploy AgentRegistry to mainnet: `npx hardhat run scripts/deploy-registry.ts --network confluxESpace`
 2. Record deployed address, set in facilitator + buyer-agent .env
 3. Start facilitator: `pnpm dev:facilitator`
-4. Start server: `pnpm dev:server`
-5. Run registration: `npx ts-node packages/server/scripts/register-chart-agent.ts`
+4. Start server: `pnpm dev:sandbox`
+5. Run registration: `npx ts-node examples/sandbox/scripts/register-chart-agent.ts`
 6. Run buyer agent: `pnpm start:buyer-agent`
 7. Verify full flow: scan → event → bazaar → 402 → pay → 200

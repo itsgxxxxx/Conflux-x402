@@ -25,6 +25,7 @@ A developer toolkit for running x402 payments on Conflux eSpace mainnet with USD
 - `examples/moviememo`: MovieMemo paid API demo
 - `tools/client`: x402 payment client
 - `tools/mcp-server`: MCP server with x402 payment tools
+- `tools/buyer-agent`: on-chain discovery + bazaar query demo client
 
 ## Quick start
 
@@ -91,6 +92,26 @@ References:
 
 - `docs/plans/2026-02-08-async-refund-design.md`
 - `docs/plans/2026-02-08-async-refund-impl.md`
+
+## Chain discovery + bazaar (optional)
+
+Deploy and register discovery contracts:
+
+```bash
+pnpm --filter @conflux-x402/contracts deploy:registry
+pnpm register:chart-agent
+```
+
+Run buyer discovery demo:
+
+```bash
+pnpm start:buyer-agent
+```
+
+References:
+
+- `docs/plans/2026-02-08-chain-discovery-bazaar-design.md`
+- `docs/plans/2026-02-08-chain-discovery-bazaar-impl.md`
 
 ## Notes
 
