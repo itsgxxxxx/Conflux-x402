@@ -14,20 +14,15 @@ const FacilitatorConfigSchema = z.object({
     .string()
     .transform((v) => v === 'true')
     .default('true'),
-  allowedPayerAddresses: z
-    .string()
-    .transform((v) => (v ? v.split(',').map((a) => a.trim().toLowerCase()) : []))
-    .default(''),
   maxPerTransaction: z.coerce.number().default(1.0),
   maxDailyTotal: z.coerce.number().default(10.0),
   circuitBreakerThreshold: z.coerce.number().default(10),
 
-  // Identity gating
+  // Service-to-service auth
+  facilitatorApiKey: z.string().optional(),
+
+  // Identity registry (observe-only logging, not enforcement)
   identityRegistryAddress: z.string().startsWith('0x').optional(),
-  requireIdentity: z
-    .string()
-    .transform((v) => v === 'true')
-    .default('false'),
 
   // Gas
   gasBufferPercent: z.coerce.number().default(50),
@@ -42,12 +37,11 @@ export function loadConfig(): FacilitatorConfig {
     rpcUrl: process.env.RPC_URL,
     network: process.env.NETWORK,
     verifyOnlyMode: process.env.VERIFY_ONLY_MODE,
-    allowedPayerAddresses: process.env.ALLOWED_PAYER_ADDRESSES,
     maxPerTransaction: process.env.MAX_PER_TRANSACTION,
     maxDailyTotal: process.env.MAX_DAILY_TOTAL,
     circuitBreakerThreshold: process.env.CIRCUIT_BREAKER_THRESHOLD,
+    facilitatorApiKey: process.env.FACILITATOR_API_KEY,
     identityRegistryAddress: process.env.IDENTITY_REGISTRY_ADDRESS,
-    requireIdentity: process.env.REQUIRE_IDENTITY,
     gasBufferPercent: process.env.GAS_BUFFER_PERCENT,
   })
 }

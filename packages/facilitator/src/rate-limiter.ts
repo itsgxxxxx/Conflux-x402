@@ -47,7 +47,7 @@ function addDailyUsage(payer: string, amount: number): void {
 
 export function isAllowedPayer(
   payer: string,
-  config: FacilitatorConfig,
+  config: { allowedPayerAddresses: string[] },
 ): boolean {
   if (config.allowedPayerAddresses.length === 0) {
     return true // Empty allowlist = allow all

@@ -12,7 +12,7 @@ import { confluxESpace } from '@conflux-x402/chain-config'
 import { loadConfig } from './config.js'
 import { logger } from './logger.js'
 import { isAlreadySettled, recordSettlement } from './idempotency.js'
-import { isAllowedPayer, checkTransactionLimits, recordFailure, recordSuccessfulPayment, getCircuitBreakerStatus } from './rate-limiter.js'
+import { checkTransactionLimits, recordFailure, recordSuccessfulPayment, getCircuitBreakerStatus } from './rate-limiter.js'
 import { checkIdentity } from './identity-check.js'
 
 const envPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../.env')
@@ -20,14 +20,13 @@ const dotenvResult = dotenv.config({ path: envPath })
 
 const config = loadConfig()
 
-logger.info({ 
-  network: config.network, 
+logger.info({
+  network: config.network,
   verifyOnly: config.verifyOnlyMode,
   verifyOnlyModeEnv: process.env.VERIFY_ONLY_MODE,
   envPath,
   dotenvLoaded: !!dotenvResult.parsed,
-  allowedPayerAddresses: config.allowedPayerAddresses,
-  allowlistCount: config.allowedPayerAddresses.length
+  hasApiKey: !!config.facilitatorApiKey,
 }, 'loading facilitator config')
 
 const account = privateKeyToAccount(config.privateKey as `0x${string}`)
@@ -88,7 +87,6 @@ function extractPayerAddress(paymentPayload: PaymentPayload): string | undefined
   } else if (typeof payload?.permit2Authorization?.from === 'string') {
     address = payload.permit2Authorization.from
   }
-  // Normalize address: trim whitespace and convert to lowercase for consistent comparison
   return address ? address.trim().toLowerCase() : undefined
 }
 
@@ -113,50 +111,23 @@ const facilitator = new x402Facilitator()
   .onBeforeVerify(async (context) => {
     const payer = extractPayerAddress(context.paymentPayload)
 
-    // Authorization Strategy (mutually exclusive):
-    // Strategy 1: Identity-based → REQUIRE_IDENTITY=true, ALLOWED_PAYER_ADDRESSES empty
-    // Strategy 2: Allowlist-based → REQUIRE_IDENTITY=false, ALLOWED_PAYER_ADDRESSES set or empty
-
-    if (config.requireIdentity) {
-      // Strategy 1: On-chain identity verification
-      if (!config.identityRegistryAddress) {
-        logger.error('IDENTITY_REGISTRY_ADDRESS required when REQUIRE_IDENTITY=true')
-        throw new Error('IDENTITY_REGISTRY_ADDRESS required when REQUIRE_IDENTITY=true')
-      }
-
-      if (!payer) {
-        logger.warn('no payer address found in payment payload')
-        return { abort: true, reason: 'IDENTITY_NOT_REGISTERED' }
-      }
-
-      logger.info({ payer, registryAddress: config.identityRegistryAddress }, 'checking identity')
-      const identityCheck = await checkIdentity(
-        payer,
-        config.identityRegistryAddress,
-        viemClient,
-        logger
-      )
-
-      if (!identityCheck.isValid) {
-        logger.warn({ payer, error: identityCheck.error }, 'identity check failed')
-        return { abort: true, reason: 'IDENTITY_NOT_REGISTERED' }
-      }
-
-      logger.info({ payer }, 'identity verified')
-    } else if (config.allowedPayerAddresses.length > 0) {
-      // Strategy 2: Simple allowlist
-      if (payer && !isAllowedPayer(payer, config)) {
-        logger.warn({
+    // Observe-only identity logging (defense-in-depth, never rejects)
+    if (config.identityRegistryAddress && payer) {
+      try {
+        const identityCheck = await checkIdentity(
           payer,
-          allowedList: config.allowedPayerAddresses,
-        }, 'payer not in allowlist')
-        return { abort: true, reason: 'PAYER_NOT_ALLOWED' }
+          config.identityRegistryAddress,
+          viemClient as unknown as Parameters<typeof checkIdentity>[2],
+          logger
+        )
+        if (!identityCheck.isValid) {
+          logger.warn({ payer, error: identityCheck.error }, 'observe: identity check would have failed')
+        } else {
+          logger.debug({ payer }, 'observe: identity check passed')
+        }
+      } catch (error) {
+        logger.warn({ payer, error: error instanceof Error ? error.message : String(error) }, 'observe: identity check error')
       }
-
-      logger.info({ payer }, 'allowlist check passed')
-    } else {
-      // Strategy 2 with empty allowlist: open access (warn in production)
-      logger.warn('no authorization enabled: REQUIRE_IDENTITY=false and ALLOWED_PAYER_ADDRESSES empty')
     }
 
     logger.info({ payer }, 'verify request received')
@@ -226,6 +197,21 @@ registerExactEvmScheme(facilitator, {
 const app = express()
 app.use(express.json())
 
+// API key middleware (skip /health)
+if (config.facilitatorApiKey) {
+  app.use((req, res, next) => {
+    if (req.path === '/health') return next()
+
+    const apiKey = req.headers['x-api-key']
+    if (apiKey !== config.facilitatorApiKey) {
+      logger.warn({ path: req.path, hasKey: !!apiKey }, 'API key validation failed')
+      return res.status(401).json({ error: 'Unauthorized', message: 'Invalid or missing API key' })
+    }
+    next()
+  })
+  logger.info('API key protection enabled')
+}
+
 app.post('/verify', async (req, res) => {
   try {
     const { paymentPayload, paymentRequirements } = req.body as {
@@ -242,18 +228,6 @@ app.post('/verify', async (req, res) => {
     res.json(response)
   } catch (error) {
     logger.error({ error }, 'verify endpoint error')
-
-    // Check if error is due to identity check failure
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    if (errorMessage.includes('IDENTITY_NOT_REGISTERED') || errorMessage.includes('PAYER_NOT_ALLOWED')) {
-      return res.status(403).json({
-        error: 'Forbidden',
-        message: errorMessage.includes('IDENTITY_NOT_REGISTERED')
-          ? 'Identity not registered or expired'
-          : 'Payer not allowed',
-      })
-    }
-
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Unknown error',
     })
@@ -277,15 +251,13 @@ app.post('/settle', async (req, res) => {
   } catch (error) {
     logger.error({ error, errorType: typeof error, errorString: String(error) }, 'settle endpoint error')
 
-    // Handle settlement abort (verify-only mode, rate limits, etc.)
     const errorMessage = error instanceof Error ? error.message : String(error)
     const errorStr = JSON.stringify(error)
-    
-    // Check for various abort reasons
-    if (errorMessage.includes('Settlement aborted:') || 
+
+    if (errorMessage.includes('Settlement aborted:') ||
         errorMessage.includes('VERIFY_ONLY_MODE') ||
         errorStr.includes('VERIFY_ONLY_MODE')) {
-      const reason = errorMessage.includes('Settlement aborted:') 
+      const reason = errorMessage.includes('Settlement aborted:')
         ? errorMessage.replace('Settlement aborted: ', '')
         : 'VERIFY_ONLY_MODE'
       res.json({
@@ -321,10 +293,6 @@ app.get('/health', (_req, res) => {
   res.json({
     status: cb.isOpen ? 'degraded' : 'ok',
     verifyOnlyMode: config.verifyOnlyMode,
-    identityGating: {
-      enabled: config.requireIdentity,
-      registryAddress: config.identityRegistryAddress,
-    },
     circuitBreaker: cb,
     network: config.network,
   })
@@ -336,7 +304,7 @@ app.listen(config.port, () => {
       port: config.port,
       network: config.network,
       verifyOnly: config.verifyOnlyMode,
-      allowlist: config.allowedPayerAddresses.length > 0 ? config.allowedPayerAddresses.length : 'disabled',
+      hasApiKey: !!config.facilitatorApiKey,
     },
     'facilitator started',
   )
