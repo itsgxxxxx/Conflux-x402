@@ -26,6 +26,33 @@ A developer toolkit for running x402 payments on Conflux eSpace mainnet with USD
 - `tools/client`: x402 payment client
 - `tools/mcp-server`: MCP server with x402 payment tools
 - `tools/buyer-agent`: on-chain discovery + bazaar query demo client
+- `tools/create-app`: scaffolding CLI for creating new x402 projects
+
+## Create a new x402 project
+
+Use the scaffolding tool to quickly bootstrap a new x402 payment application:
+
+```bash
+# From this repository
+pnpm start:create-app
+
+# Or using npx (when published)
+npx create-x402-app
+```
+
+The CLI will guide you through:
+1. Project name selection
+2. Template preset (core / core+identity)
+3. Network selection (testnet / mainnet)
+
+Generated project includes:
+- Facilitator service
+- Express middleware
+- Client library
+- Sandbox example
+- Optional: Identity contracts + attestor + CLI
+
+See `tools/create-app/README.md` for details.
 
 ## Quick start
 
