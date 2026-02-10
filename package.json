@@ -17,6 +17,7 @@
     "start:client:manual": "pnpm --filter @conflux-x402/client start:manual",
     "start:buyer-agent": "pnpm --filter @conflux-x402/buyer-agent start",
     "start:mcp": "pnpm --filter @conflux-x402/mcp-server start",
+    "start:create-app": "pnpm --filter @conflux-x402/create-app dev",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "test:contracts": "pnpm --filter @conflux-x402/contracts test"

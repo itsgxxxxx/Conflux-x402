@@ -5,10 +5,6 @@ dist/
 *.log
 .DS_Store
 coverage/
-packages/contracts/deployments/
 deploy-package/
 deploy-temp/
 *.tar.gz
-
-# Nested repository (source for identity template)
-Conflux-x402/

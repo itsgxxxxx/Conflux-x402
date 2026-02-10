@@ -1,0 +1,18 @@
+[phases.setup]
+nixPkgs = ["nodejs-18_x", "pnpm"]
+
+[phases.install]
+cmds = [
+  "cd /app",
+  "pnpm install --frozen-lockfile"
+]
+
+[phases.build]
+cmds = [
+  "cd /app",
+  "pnpm --filter @{{PROJECT_NAME}}/chain-config build",
+  "pnpm --filter @{{PROJECT_NAME}}/facilitator build"
+]
+
+[start]
+cmd = "cd packages/facilitator && node dist/index.js"

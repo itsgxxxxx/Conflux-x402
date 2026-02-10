@@ -1,0 +1,12 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter @{{PROJECT_NAME}}/chain-config build && pnpm --filter @{{PROJECT_NAME}}/facilitator build"
+  },
+  "deploy": {
+    "startCommand": "cd packages/facilitator && node dist/index.js",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}
